@@ -1,17 +1,18 @@
-module fifo #(
+module fifo_ctrl #(
   parameter  DataWidth   = 8,
   parameter  Depth       = 64,
-  localparam PtrWidth    = $clog2(Depth),
+  localparam PtrWidth    = $clog2(Depth)
 )(
   input  logic                 i_clk,
-  input  logic [DataWidth-1:0] i_data,
   input  logic                 i_rst_n,
   input  logic                 i_wr_en,
   input  logic                 i_rd_en,
-  output logic [DataWidth-1:0] o_data,
+  output logic [PtrWidth-1:0]  o_wr_addr,
+  output logic [PtrWidth-1:0]  o_rd_addr,
   output logic                 o_full,
   output logic                 o_empty
 );
+
   initial begin
     $display("Hello world from fifo ctrl");
   end
@@ -31,15 +32,18 @@ module fifo #(
   end
 
   always_comb begin
-    if (i_wr_en) wd_ptr_next = wd_ptr_next + 1'b1;
-    else         wd_ptr_next = wd_ptr;
+    if (i_wr_en) wr_ptr_next = wr_ptr_next + 1'b1;
+    else         wr_ptr_next = wr_ptr;
 
     if (i_rd_en) rd_ptr_next = rd_ptr_next + 1'b1;
     else         rd_ptr_next = rd_ptr;
   end
+  
+  assign o_rd_addr = rd_ptr[PtrWidth-1:0];
+  assign o_wr_addr = wr_ptr[PtrWidth-1:0];
 
-  assign o_full  = ((wr_ptr[PtrWidth] != rd_ptr[PtrWidth]) && (writePtr[PtrWidth-1:0] == readPtr[PtrWidth-1:0]));
-  assign o_empty = ((wr_ptr[PtrWidth] == rd_ptr[PtrWidth]) && (writePtr[PtrWidth-1:0] == readPtr[PtrWidth-1:0]));
+  assign o_full  = ((wr_ptr[PtrWidth] != rd_ptr[PtrWidth]) && (wr_ptr[PtrWidth-1:0] == rd_ptr[PtrWidth-1:0]));
+  assign o_empty = ((wr_ptr[PtrWidth] == rd_ptr[PtrWidth]) && (wr_ptr[PtrWidth-1:0] == rd_ptr[PtrWidth-1:0]));
   
 endmodule
 

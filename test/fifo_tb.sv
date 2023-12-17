@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-module fifo_tb;
+module fifo_tb ();
 
   // Parameters
   localparam DataWidth = 8;
@@ -23,11 +23,11 @@ module fifo_tb;
     .Depth(Depth)
   ) uut (
     .i_clk(clk),
-    .i_data(in_data),
+    .i_wr_data(in_data),
     .i_rst_n(rst_n),
-    .i_write_en(write_en),
-    .i_read_en(read_en),
-    .o_data(out_data),
+    .i_wr_en(write_en),
+    .i_rd_en(read_en),
+    .o_rd_data(out_data),
     .o_full(full),
     .o_empty(empty)
   );

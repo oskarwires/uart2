@@ -9,7 +9,7 @@ module fifo_mem #(
   input  logic [AddrWidth-1:0] i_wr_addr,
   input  logic [DataWidth-1:0] i_wr_data,
   input  logic [AddrWidth-1:0] i_rd_addr,
-  output logic [DataWidth-1:0] o_rd_data,
+  output logic [DataWidth-1:0] o_rd_data
 );
 
   logic [DataWidth-1:0] memory [Depth];

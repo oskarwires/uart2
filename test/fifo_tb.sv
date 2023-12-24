@@ -130,8 +130,8 @@ module fifo_tb ();
     read_en <= 0;
     
     // Additional test cases...
-  
     #100;
+    $display("Tests complete =D!");
     $finish;
   end
 endmodule

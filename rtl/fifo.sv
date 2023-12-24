@@ -22,10 +22,14 @@ module fifo #(
     if (FWFT)
       assign o_rd_data = mem_rd_data;
     else
+      //assign o_rd_data = mem_rd_data;
       assign o_rd_data = i_rd_en ? mem_rd_data : '0;
   endgenerate
 
-  fifo_mem fifo_mem (
+  fifo_mem #(
+    .DataWidth(DataWidth),
+    .Depth(Depth)
+  ) fifo_mem (
     .i_clk,
     .i_wr_data,
     .i_wr_addr(wr_addr),
@@ -34,10 +38,14 @@ module fifo #(
     .o_rd_data(mem_rd_data)
   );
 
-  fifo_ctrl fifo_ctrl (
+  fifo_ctrl #(
+    .DataWidth(DataWidth),
+    .Depth(Depth)
+  ) fifo_ctrl (
     .i_clk,
     .i_rst_n,
     .i_wr_en,
+    .i_rd_en,
     .o_rd_addr(rd_addr),
     .o_wr_addr(wr_addr),
     .o_full,

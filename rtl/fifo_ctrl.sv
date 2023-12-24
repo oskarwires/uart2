@@ -1,6 +1,6 @@
 module fifo_ctrl #(
   parameter  DataWidth   = 8,
-  parameter  Depth       = 64,
+  parameter  Depth       = 8,
   localparam PtrWidth    = $clog2(Depth)
 )(
   input  logic                 i_clk,
@@ -12,10 +12,6 @@ module fifo_ctrl #(
   output logic                 o_full,
   output logic                 o_empty
 );
-
-  initial begin
-    $display("Hello world from fifo ctrl");
-  end
 
   logic [DataWidth-1:0] buffer[Depth];
   logic [PtrWidth:0]    wr_ptr, wr_ptr_next;
@@ -32,10 +28,10 @@ module fifo_ctrl #(
   end
 
   always_comb begin
-    if (i_wr_en) wr_ptr_next = wr_ptr_next + 1'b1;
+    if (i_wr_en) wr_ptr_next = wr_ptr + 1'b1;
     else         wr_ptr_next = wr_ptr;
 
-    if (i_rd_en) rd_ptr_next = rd_ptr_next + 1'b1;
+    if (i_rd_en) rd_ptr_next = rd_ptr + 1'b1;
     else         rd_ptr_next = rd_ptr;
   end
   

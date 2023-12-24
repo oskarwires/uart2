@@ -8,7 +8,7 @@ module fifo_tb ();
   localparam PtrWidth  = $clog2(Depth);
 
   // Testbench Signals
-  logic                 clk;
+  logic                 clk = 1'b0;
   logic [DataWidth-1:0] in_data;
   logic                 rst_n;
   logic                 write_en;
@@ -16,6 +16,8 @@ module fifo_tb ();
   logic [DataWidth-1:0] out_data;
   logic                 full;
   logic                 empty;
+  
+  logic [DataWidth-1:0] test_input [8];
 
   // Instantiate the FIFO
   fifo #(
@@ -38,48 +40,99 @@ module fifo_tb ();
   // Testbench Initial Block
   initial begin
     // Initialize signals
-    clk      = 0;
-    in_data     = 0;
-    rst_n    = 0;
-    write_en = 0;
-    read_en  = 0;
-
-    // Reset the FIFO
-    #10;
-    rst_n = 1;
-    #10;
-    rst_n = 0;
-    #10;
-    rst_n = 1;
+    clk <= 0;
+      in_data <= 0;
+      rst_n <= 0;
+      write_en <= 0;
+      read_en <= 0;
+        
+      #10; // Wait for a couple of clock cycles
+      rst_n <= 1;
+      #20;
+      rst_n <= 0;
+      #10;
+      rst_n <= 1;
+      #10;
+      
+      // TEST 1:
+      // Randomize the input vector
+      for (int i = 0; i < 8; i++) begin
+        test_input[i] <= $random; // Masking to get the lower 8 bits
+      end
+      @(posedge clk);
+     
+      // Write to FIFO
+      for (int i = 0; i < Depth; i++) begin
+        in_data <= test_input[i]; // Assign data
+        write_en <= 1; // We want to write data!
+        @(posedge clk); // Wait for next rising edge
+      end
+      in_data <= $random; // Assign random value to in_data, which should NOT be written
+      write_en <= 0;
+      @(posedge clk);
+       
+      // Read from FIFO
+      for (int i = 0; i < Depth; i++) begin
+        read_en <= 1;
+        @(posedge clk); 
+        assert(out_data == test_input[i]);
+      end
+      read_en <= 0;
+      
+      // TEST 2:
+      // Randomize the input vector
+      for (int i = 0; i < 8; i++) begin
+        test_input[i] <= $random;
+      end
+      @(posedge clk);
+      // Write to FIFO
+      for (int i = 0; i < Depth; i++) begin
+        @(posedge clk);
+        in_data <= test_input[i];
+        write_en <= 1;
+        @(posedge clk);
+        write_en <= 0;
+      end
     
-    // Write to FIFO
-    repeat (Depth) begin
-      #10;
-      in_data = $random;
-      write_en = 1;
-      #10;
-      write_en = 0;
+      // Read from FIFO
+      for (int i = 0; i < Depth; i++) begin
+        @(posedge clk);
+        read_en <= 1;
+        @(posedge clk);
+        assert(out_data == test_input[i]);
+        read_en <= 0;
+      end
+      
+      // TEST 3:
+      // Randomize the input vector
+      for (int i = 0; i < 8; i++) begin
+        test_input[i] <= $random;
+      end
+      @(posedge clk);
+      
+      // Write first value to FIFO
+      @(posedge clk);
+      in_data <= test_input[0];
+      write_en <= 1;
+      @(posedge clk);
+      // Write rest of values to FIFO and start reading
+      for (int i = 1; i < Depth; i++) begin
+        read_en <= 1;
+        in_data <= test_input[i];
+        write_en <= 1;
+        @(posedge clk)
+        assert(out_data == test_input[i-1]);
+      end
+      in_data <= 0;
+      write_en <= 0;
+      read_en <= 1;
+      @(posedge clk);
+      read_en <= 0;
+      
+      // Additional test cases...
+    
+      #100;
+      $finish;
     end
-
-    // Read from FIFO
-    repeat (Depth) begin
-      #10;
-      read_en = 1;
-      #10;
-      read_en = 0;
-    end
-
-    // Additional test cases can be added here yay
-
-    // End simulation
-    #100;
-    $finish;
-  end
-
-  // Monitor
-  initial begin
-    $monitor("Time = %t, Full = %b, Empty = %b, Data Out = %h", 
-             $time, full, empty, out_data);
-  end
 
 endmodule

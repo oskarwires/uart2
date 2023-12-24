@@ -1,4 +1,5 @@
 // Dual-Port RAM for FIFO, async read and sync write, with no reset
+`timescale 1ns / 1ps
 module fifo_mem #(
   parameter  DataWidth = 8,
   parameter  Depth     = 8,

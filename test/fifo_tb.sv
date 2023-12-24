@@ -41,98 +41,97 @@ module fifo_tb ();
   initial begin
     // Initialize signals
     clk <= 0;
-      in_data <= 0;
-      rst_n <= 0;
-      write_en <= 0;
-      read_en <= 0;
-        
-      #10; // Wait for a couple of clock cycles
-      rst_n <= 1;
-      #20;
-      rst_n <= 0;
-      #10;
-      rst_n <= 1;
-      #10;
+    in_data <= 0;
+    rst_n <= 0;
+    write_en <= 0;
+    read_en <= 0;
       
-      // TEST 1:
-      // Randomize the input vector
-      for (int i = 0; i < 8; i++) begin
-        test_input[i] <= $random; // Masking to get the lower 8 bits
-      end
-      @(posedge clk);
-     
-      // Write to FIFO
-      for (int i = 0; i < Depth; i++) begin
-        in_data <= test_input[i]; // Assign data
-        write_en <= 1; // We want to write data!
-        @(posedge clk); // Wait for next rising edge
-      end
-      in_data <= $random; // Assign random value to in_data, which should NOT be written
-      write_en <= 0;
-      @(posedge clk);
-       
-      // Read from FIFO
-      for (int i = 0; i < Depth; i++) begin
-        read_en <= 1;
-        @(posedge clk); 
-        assert(out_data == test_input[i]);
-      end
-      read_en <= 0;
-      
-      // TEST 2:
-      // Randomize the input vector
-      for (int i = 0; i < 8; i++) begin
-        test_input[i] <= $random;
-      end
-      @(posedge clk);
-      // Write to FIFO
-      for (int i = 0; i < Depth; i++) begin
-        @(posedge clk);
-        in_data <= test_input[i];
-        write_en <= 1;
-        @(posedge clk);
-        write_en <= 0;
-      end
+    #10; // Wait for a couple of clock cycles
+    rst_n <= 1;
+    #20;
+    rst_n <= 0;
+    #10;
+    rst_n <= 1;
+    #10;
     
-      // Read from FIFO
-      for (int i = 0; i < Depth; i++) begin
-        @(posedge clk);
-        read_en <= 1;
-        @(posedge clk);
-        assert(out_data == test_input[i]);
-        read_en <= 0;
-      end
-      
-      // TEST 3:
-      // Randomize the input vector
-      for (int i = 0; i < 8; i++) begin
-        test_input[i] <= $random;
-      end
+    // TEST 1:
+    // Randomize the input vector
+    for (int i = 0; i < 8; i++) begin
+      test_input[i] <= $random; // Masking to get the lower 8 bits
+    end
+    @(posedge clk);
+    
+    // Write to FIFO
+    for (int i = 0; i < Depth; i++) begin
+      in_data <= test_input[i]; // Assign data
+      write_en <= 1; // We want to write data!
+      @(posedge clk); // Wait for next rising edge
+    end
+    in_data <= $random; // Assign random value to in_data, which should NOT be written
+    write_en <= 0;
+    @(posedge clk);
+     
+    // Read from FIFO
+    for (int i = 0; i < Depth; i++) begin
+      read_en <= 1;
+      @(posedge clk); 
+      assert(out_data == test_input[i]);
+    end
+    read_en <= 0;
+    
+    // TEST 2:
+    // Randomize the input vector
+    for (int i = 0; i < 8; i++) begin
+      test_input[i] <= $random;
+    end
+    @(posedge clk);
+    // Write to FIFO
+    for (int i = 0; i < Depth; i++) begin
       @(posedge clk);
-      
-      // Write first value to FIFO
-      @(posedge clk);
-      in_data <= test_input[0];
+      in_data <= test_input[i];
       write_en <= 1;
       @(posedge clk);
-      // Write rest of values to FIFO and start reading
-      for (int i = 1; i < Depth; i++) begin
-        read_en <= 1;
-        in_data <= test_input[i];
-        write_en <= 1;
-        @(posedge clk)
-        assert(out_data == test_input[i-1]);
-      end
-      in_data <= 0;
       write_en <= 0;
+    end
+  
+    // Read from FIFO
+    for (int i = 0; i < Depth; i++) begin
+      @(posedge clk);
       read_en <= 1;
       @(posedge clk);
+      assert(out_data == test_input[i]);
       read_en <= 0;
-      
-      // Additional test cases...
-    
-      #100;
-      $finish;
     end
-
+    
+    // TEST 3:
+    // Randomize the input vector
+    for (int i = 0; i < 8; i++) begin
+      test_input[i] <= $random;
+    end
+    @(posedge clk);
+    
+    // Write first value to FIFO
+    @(posedge clk);
+    in_data <= test_input[0];
+    write_en <= 1;
+    @(posedge clk);
+    // Write rest of values to FIFO and start reading
+    for (int i = 1; i < Depth; i++) begin
+      read_en <= 1;
+      in_data <= test_input[i];
+      write_en <= 1;
+      @(posedge clk)
+      assert(out_data == test_input[i-1]);
+    end
+    in_data <= 0;
+    write_en <= 0;
+    read_en <= 1;
+    @(posedge clk);
+    read_en <= 0;
+    
+    // Additional test cases...
+  
+    #100;
+    $finish;
+  end
 endmodule

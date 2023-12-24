@@ -1,4 +1,5 @@
 // Synchronous FIFO (First-in First-Out) buffer
+`timescale 1ns / 1ps
 module fifo #(
   parameter  DataWidth = 8,
   parameter  Depth     = 8,

@@ -1,16 +1,18 @@
+// FIFO Controller module
+`timescale 1ns / 1ps
 module fifo_ctrl #(
   parameter  DataWidth   = 8,
   parameter  Depth       = 8,
   localparam PtrWidth    = $clog2(Depth)
 )(
-  input  logic                 i_clk,
-  input  logic                 i_rst_n,
-  input  logic                 i_wr_en,
-  input  logic                 i_rd_en,
-  output logic [PtrWidth-1:0]  o_wr_addr,
-  output logic [PtrWidth-1:0]  o_rd_addr,
-  output logic                 o_full,
-  output logic                 o_empty
+  input  logic                i_clk,
+  input  logic                i_rst_n,
+  input  logic                i_wr_en,
+  input  logic                i_rd_en,
+  output logic [PtrWidth-1:0] o_wr_addr,
+  output logic [PtrWidth-1:0] o_rd_addr,
+  output logic                o_full,
+  output logic                o_empty
 );
 
   logic [DataWidth-1:0] buffer[Depth];

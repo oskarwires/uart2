@@ -14,7 +14,7 @@ module uart_prescaler #(
 
   /* Counter Logic */
   always_ff @(posedge i_clk) begin
-    if (i_rst_n) begin
+    if (!i_rst_n) begin
       counter <= '0;
     end else begin
       if (i_en) begin
@@ -26,19 +26,19 @@ module uart_prescaler #(
 
   /* Halfway Signal Gen */
   always_comb begin
-    if (i_rst_n) begin
+    if (!i_rst_n) begin
       o_half <= 1'b0;
     end else begin
-      o_half <= (cnt == (div[15:1] - 16'b1));
+      o_half <= (counter == (i_scaler[15:1] - 16'b1));
     end
   end
 
   /* Strobe Signal Gen */
   always_comb begin
-    if (i_rst_n) begin
+    if (!i_rst_n) begin
       o_strobe <= 1'b0;
     end else begin
-      o_strobe <= (cnt == (div - 16'b1));
+      o_strobe <= (counter == (i_scaler - 16'b1));
     end
   end
 

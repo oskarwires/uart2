@@ -8,7 +8,7 @@ module uart_axi #(
   input  logic        i_clk,
   /* Module Signals */
   input  logic [31:0] i_ctrl,    /* Control Register */
-  output logic [31:0] o_status   /* Status Register */
+  output logic [31:0] o_status,  /* Status Register */
   input  logic [7:0]  i_tx_data, /* Byte to send */
   output logic [7:0]  o_rx_data, /* Recieved byte */
   input  logic        i_tx_req,  /* Request to send */
@@ -20,11 +20,12 @@ module uart_axi #(
   input  logic        i_cts,
   output logic        o_rts    
 );
-
-  fifo fifo_u #(
+  logic fifo_empty;  
+  
+  fifo #(
     .DataWidth(8),
     .Depth(FifoDepth)
-  )(
+  ) fifo (
     .i_clk,
     .i_rst_n,
     .i_wr_data(i_tx_data),
@@ -32,8 +33,10 @@ module uart_axi #(
     .i_rd_en(i_rx_req),
     .o_rd_data(o_rx_data),
     .o_full(),
-    .o_empty(~o_rx_rdy)
+    .o_empty(fifo_empty)
   );
-  
+
+  assign o_rx_rdy = ~fifo_empty;
+ 
 endmodule
 

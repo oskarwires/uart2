@@ -5,7 +5,7 @@ module uart_prescaler_tb();
   logic [15:0] i_scaler;
 
   uart_prescaler #(
-    .InitialDivider(16)
+    .InitialDivider(8)
   ) uut (
     .i_clk,
     .i_rst_n,
@@ -17,7 +17,7 @@ module uart_prescaler_tb();
 
   // Clock Gen
   initial i_clk = 1'b0;
-  always $5 i_clk = ~clk;
+  always #5 i_clk = ~i_clk;
 
   initial begin
     $dumpfile("uart_prescaler_tb.vcd"); // Initialize VCD dump
@@ -25,13 +25,13 @@ module uart_prescaler_tb();
     // Initial Signal Stimuli
     i_rst_n  <= 1'b0; /* Assert Reset */
     i_en     <= 1'b0;
-    i_scaler <= 16'd16;
+    i_scaler <= 16'd8;
     repeat (2) @(posedge i_clk);
     i_rst_n  <= 1'b1;
     @(posedge i_clk);
     i_en     <= 1'b1;
     @(posedge i_clk);
-    repeat (10) @(posedge i_clk);
+    repeat (100) @(posedge i_clk);
 
 
     $display("Prescaler test complete");

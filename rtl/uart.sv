@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 // Configurable UART module
-module uart_axi #(
+module uart #(
   parameter FifoDepth = 8
 )(
   /* Main Signals */
@@ -20,8 +20,10 @@ module uart_axi #(
   input  logic        i_cts,
   output logic        o_rts    
 );
-  logic fifo_empty;  
+  logic prescaler_half, prescaler_strobe, prescaler_en;  
   
+  /*
+  logic fifo_empty;  
   fifo #(
     .DataWidth(8),
     .Depth(FifoDepth)
@@ -35,8 +37,28 @@ module uart_axi #(
     .o_full(),
     .o_empty(fifo_empty)
   );
+  */
 
-  assign o_rx_rdy = ~fifo_empty;
+  uart_rx uart_rx (
+    .i_clk,
+    .i_rst_n,
+    .i_rx,
+    .o_rx_data(),
+    .i_strobe(prescaler_strobe),
+    .i_half(prescaler_half),
+    .o_prescaler_en(prescaler_en)
+  );
+
+  uart_prescaler uart_prescaler (
+    .i_clk,
+    .i_rst_n,
+    .i_en(prescaler_en),
+    .i_scaler(16'd8),
+    .o_strobe(prescaler_strobe),
+    .o_half(prescaler_half)
+  );
+
+  //assign o_rx_rdy = ~fifo_empty;
  
 endmodule
 

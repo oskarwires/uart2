@@ -1,7 +1,8 @@
 `timescale 1ns / 1ps
 // Scales the clock signal according to scale factor
 module uart_prescaler #(
-  parameter InitialDivider = 16
+  parameter InitialDivider = 16,
+  parameter OverSample = 8
 )(
   input  logic        i_clk,
   input  logic        i_rst_n,
@@ -10,6 +11,7 @@ module uart_prescaler #(
   output logic        o_strobe, /* Strobe signal */
   output logic        o_half    /* Halfway signal */
 );
+
   logic [15:0] counter;
 
   /* Counter Logic */
@@ -18,7 +20,7 @@ module uart_prescaler #(
       counter <= '0;
     end else begin
       if (i_en) begin
-        if (counter == (i_scaler - 16'b1)) counter <= '0;
+        if (counter == (i_scaler - 16'd1)) counter <= '0;
         else counter <= counter + 16'b1;
       end
     end
@@ -29,7 +31,7 @@ module uart_prescaler #(
     if (!i_rst_n) begin
       o_half <= 1'b0;
     end else begin
-      o_half <= (counter == (i_scaler[15:1] - 16'b1));
+      o_half <= (counter == (i_scaler[15:1] - 16'd2));
     end
   end
 
@@ -38,7 +40,7 @@ module uart_prescaler #(
     if (!i_rst_n) begin
       o_strobe <= 1'b0;
     end else begin
-      o_strobe <= (counter == (i_scaler - 16'b1));
+      o_strobe <= (counter == (i_scaler - 16'd2));
     end
   end
 

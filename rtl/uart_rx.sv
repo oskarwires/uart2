@@ -1,4 +1,7 @@
 module uart_rx #(
+  parameter Parity = 1'b0,
+  parameter StopBit = 1'b1,
+  parameter OverSample = 8
   //params
 )(
   //i/o
@@ -11,19 +14,28 @@ module uart_rx #(
   /* Sample Timing */
   input  logic       i_strobe,
   input  logic       i_half,
-  output logic       o_prescaler_en 
+  output logic       o_prescaler_en,
+  output logic       o_parity_error,
+  output logic       o_stop_bit_error 
 );
  
+  localparam counter_width = $clog2(OverSample);
+ 
   typedef enum logic [2:0] {
-    RESET = 3'b000,
-    WAIT  = 2'b001,
-    LOAD  = 3'b010,
-    STOP  = 3'b011,
-    READY = 3'b100
+    RESET  = 3'b000,
+    WAIT   = 2'b001,
+    LOAD   = 3'b010,
+    PARITY = 3'b011, 
+    STOP   = 3'b100,
+    READY  = 3'b101
   } states_t;
 
   states_t curr_state, next_state;
-  logic [2:0] counter;
+
+  logic [counter_width:0] counter;
+  logic counter_rst_n;
+
+  logic parity_bit;
 
   // State controller
   always_ff @(posedge i_clk) begin
@@ -33,33 +45,47 @@ module uart_rx #(
 
   // Next State Logic Controller
   always_comb begin
-    unique case (state)
+    unique case (curr_state)
       RESET:
         next_state   = WAIT;
       WAIT:
-        if (serial_in == '0)
+        if (i_rx == '0)
           next_state = LOAD;
         else 
           next_state = WAIT;
       LOAD:
         if (counter == '0)
-          next_state = STOP;
+          generate
+             case (Parity)
+               0: next_state = STOP;
+               1: next_state = PARITY;
+             endcase
+          endgenerate
         else 
           next_state = LOAD;
+      PARITY:
+        if (i_half) 
+          next_state = STOP;
+        else
+          next_state = PARITY; 
       STOP:
-        // wait for stop bit
+        if (i_half && i_rx) // halfway strobe AND rx == 1 (stop bit)
+          next_state = READY;
+        else
+          next_state = STOP;
       READY: 
         next_state   = WAIT;
     endcase
   end
 
   always_comb begin
-    unique case (state)
-      RESET: 
-      WAIT:  
-      LOAD:  
-      STOP:  
-      READY: 
+    unique case (curr_state)
+      RESET:  {o_prescaler_en, counter_rst_n} = 2'b00;
+      WAIT:   {o_prescaler_en, counter_rst_n} = 2'b00;
+      LOAD:   {o_prescaler_en, counter_rst_n} = 2'b11;
+      PARITY: {o_prescaler_en, counter_rst_n} = 2'b10;
+      STOP:   {o_prescaler_en, counter_rst_n} = 2'b10;
+      READY:  {o_prescaler_en, counter_rst_n} = 2'b00;
     endcase
   end
 
@@ -67,11 +93,11 @@ module uart_rx #(
     if (!i_rst_n)
       o_rx_data <= 0;
     else if (i_half)
-      o_rx_data <= {rx, o_rx_data[7:1]};
+      o_rx_data <= {i_rx, o_rx_data[7:1]};
   
   always_ff @(posedge i_clk)
-    if (!i_rst_n)
-      counter <= '0;
+    if (!counter_rst_n)
+      counter <= '1;
     else if (i_half)
       counter <= counter - 3'b1;  
 

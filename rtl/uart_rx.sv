@@ -1,7 +1,7 @@
 module uart_rx #(
   parameter Parity = 1'b0,
   parameter StopBit = 1'b1,
-  parameter OverSample = 8
+  parameter DataLength = 8
   //params
 )(
   //i/o
@@ -16,23 +16,25 @@ module uart_rx #(
   input  logic       i_half,
   output logic       o_prescaler_en,
   output logic       o_parity_error,
-  output logic       o_stop_bit_error 
+  output logic       o_stop_bit_error,
+  output logic       o_fifo_write_en	
 );
  
-  localparam counter_width = $clog2(OverSample);
+  localparam counter_width = $clog2(DataLength);
  
   typedef enum logic [2:0] {
     RESET  = 3'b000,
-    WAIT   = 2'b001,
-    LOAD   = 3'b010,
-    PARITY = 3'b011, 
-    STOP   = 3'b100,
-    READY  = 3'b101
+    WAIT   = 3'b001,
+    START  = 3'b010,
+    LOAD   = 3'b011,
+    PARITY = 3'b100, 
+    STOP   = 3'b101,
+    READY  = 3'b110
   } states_t;
 
   states_t curr_state, next_state;
 
-  logic [counter_width:0] counter;
+  logic [counter_width-1:0] bit_counter;
   logic counter_rst_n;
 
   logic parity_bit;
@@ -50,17 +52,20 @@ module uart_rx #(
         next_state   = WAIT;
       WAIT:
         if (i_rx == '0)
-          next_state = LOAD;
+          next_state = START;
         else 
           next_state = WAIT;
+      START:
+        if (i_strobe == '1)
+	  next_state = LOAD;
+	else
+	  next_state = START;
       LOAD:
-        if (counter == '0)
-          generate
-             case (Parity)
-               0: next_state = STOP;
-               1: next_state = PARITY;
-             endcase
-          endgenerate
+        if (bit_counter == '0 && i_half)
+          case (Parity)
+            0: next_state = STOP;
+            1: next_state = PARITY;
+          endcase
         else 
           next_state = LOAD;
       PARITY:
@@ -71,7 +76,7 @@ module uart_rx #(
       STOP:
         if (i_half && i_rx) // halfway strobe AND rx == 1 (stop bit)
           next_state = READY;
-        else
+        else 
           next_state = STOP;
       READY: 
         next_state   = WAIT;
@@ -80,12 +85,13 @@ module uart_rx #(
 
   always_comb begin
     unique case (curr_state)
-      RESET:  {o_prescaler_en, counter_rst_n} = 2'b00;
-      WAIT:   {o_prescaler_en, counter_rst_n} = 2'b00;
-      LOAD:   {o_prescaler_en, counter_rst_n} = 2'b11;
-      PARITY: {o_prescaler_en, counter_rst_n} = 2'b10;
-      STOP:   {o_prescaler_en, counter_rst_n} = 2'b10;
-      READY:  {o_prescaler_en, counter_rst_n} = 2'b00;
+      RESET:  {o_prescaler_en, counter_rst_n, o_fifo_write_en} = 3'b000;
+      WAIT:   {o_prescaler_en, counter_rst_n, o_fifo_write_en} = 3'b000;
+      START:  {o_prescaler_en, counter_rst_n, o_fifo_write_en} = 3'b100;
+      LOAD:   {o_prescaler_en, counter_rst_n, o_fifo_write_en} = 3'b110;
+      PARITY: {o_prescaler_en, counter_rst_n, o_fifo_write_en} = 3'b100;
+      STOP:   {o_prescaler_en, counter_rst_n, o_fifo_write_en} = 3'b100;
+      READY:  {o_prescaler_en, counter_rst_n, o_fifo_write_en} = 3'b001;
     endcase
   end
 
@@ -97,9 +103,9 @@ module uart_rx #(
   
   always_ff @(posedge i_clk)
     if (!counter_rst_n)
-      counter <= '1;
+      bit_counter <= '1;
     else if (i_half)
-      counter <= counter - 3'b1;  
+      bit_counter <= bit_counter - 3'b1;  
 
 endmodule
 

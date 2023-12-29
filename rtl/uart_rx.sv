@@ -6,18 +6,18 @@ module uart_rx #(
 )(
   //i/o
   /* Main Signals */
-  input  logic       i_clk, // Assuming this is at baudrate * oversampling (16)
-  input  logic 	     i_rst_n,
+  input  logic                  i_clk, // Assuming this is at baudrate * oversampling
+  input  logic 	                i_rst_n,
   /* UART Signals */
-  input  logic       i_rx,
-  output logic [7:0] o_rx_data,
+  input  logic                  i_rx,
+  output logic [DataLength-1:0] o_rx_data,
   /* Sample Timing */
-  input  logic       i_strobe,
-  input  logic       i_half,
-  output logic       o_prescaler_en,
-  output logic       o_parity_error,
-  output logic       o_stop_bit_error,
-  output logic       o_fifo_write_en	
+  input  logic                  i_strobe,
+  input  logic                  i_half,
+  output logic                  o_prescaler_en,
+  output logic                  o_parity_error,
+  output logic                  o_stop_bit_error,
+  output logic                  o_fifo_write_en	
 );
  
   localparam counter_width = $clog2(DataLength);
@@ -40,7 +40,7 @@ module uart_rx #(
   logic parity_bit;
 
   // State controller
-  always_ff @(posedge i_clk) begin
+  always_ff @(posedge i_clk, negedge i_rst_n) begin
     if (!i_rst_n) curr_state <= RESET;
     else          curr_state <= next_state;
   end
@@ -95,13 +95,13 @@ module uart_rx #(
     endcase
   end
 
-  always_ff @(posedge i_clk)
+  always_ff @(posedge i_clk, negedge i_rst_n)
     if (!i_rst_n)
       o_rx_data <= 0;
     else if (i_half)
       o_rx_data <= {i_rx, o_rx_data[7:1]};
   
-  always_ff @(posedge i_clk)
+  always_ff @(posedge i_clk, negedge i_rst_n)
     if (!counter_rst_n)
       bit_counter <= '1;
     else if (i_half)

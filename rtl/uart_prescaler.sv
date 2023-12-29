@@ -15,7 +15,7 @@ module uart_prescaler #(
   logic [15:0] counter;
 
   /* Counter Logic */
-  always_ff @(posedge i_clk) begin
+  always_ff @(posedge i_clk, negedge i_rst_n) begin
     if (!i_rst_n) begin
       counter <= '0;
     end else begin

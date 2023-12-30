@@ -35,7 +35,7 @@ module uart_rx #(
   states_t curr_state, next_state;
 
   logic [counter_width-1:0] bit_counter;
-  logic counter_rst_n;
+  logic counter_rst_n, shift_reg_en;
 
   logic parity_bit;
 
@@ -85,24 +85,26 @@ module uart_rx #(
 
   always_comb begin
     unique case (curr_state)
-      RESET:  {o_prescaler_en, counter_rst_n, o_fifo_write_en} = 3'b000;
-      WAIT:   {o_prescaler_en, counter_rst_n, o_fifo_write_en} = 3'b000;
-      START:  {o_prescaler_en, counter_rst_n, o_fifo_write_en} = 3'b100;
-      LOAD:   {o_prescaler_en, counter_rst_n, o_fifo_write_en} = 3'b110;
-      PARITY: {o_prescaler_en, counter_rst_n, o_fifo_write_en} = 3'b100;
-      STOP:   {o_prescaler_en, counter_rst_n, o_fifo_write_en} = 3'b100;
-      READY:  {o_prescaler_en, counter_rst_n, o_fifo_write_en} = 3'b001;
+      RESET:  {o_prescaler_en, counter_rst_n, o_fifo_write_en, shift_reg_en} = 4'b0000;
+      WAIT:   {o_prescaler_en, counter_rst_n, o_fifo_write_en, shift_reg_en} = 4'b0000;
+      START:  {o_prescaler_en, counter_rst_n, o_fifo_write_en, shift_reg_en} = 4'b1000;
+      LOAD:   {o_prescaler_en, counter_rst_n, o_fifo_write_en, shift_reg_en} = 4'b1101;
+      PARITY: {o_prescaler_en, counter_rst_n, o_fifo_write_en, shift_reg_en} = 4'b1000;
+      STOP:   {o_prescaler_en, counter_rst_n, o_fifo_write_en, shift_reg_en} = 4'b1000;
+      READY:  {o_prescaler_en, counter_rst_n, o_fifo_write_en, shift_reg_en} = 4'b0010;
     endcase
   end
 
+  /* Shift Register */
   always_ff @(posedge i_clk, negedge i_rst_n)
     if (!i_rst_n)
       o_rx_data <= 0;
-    else if (i_half)
-      o_rx_data <= {i_rx, o_rx_data[7:1]};
+    else if (i_half && shift_reg_en)
+      o_rx_data <= {i_rx, o_rx_data[DataLength-1:1]};
   
+  /* Decrementing Counter */
   always_ff @(posedge i_clk, negedge i_rst_n)
-    if (!counter_rst_n)
+    if (!i_rst_n || !counter_rst_n)
       bit_counter <= '1;
     else if (i_half)
       bit_counter <= bit_counter - 3'b1;  

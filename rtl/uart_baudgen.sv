@@ -1,29 +1,42 @@
 module uart_baudgen #(
-  parameter Divider = 1000,
-  parameter OverSample = 8
+    parameter integer SystemClockFreq = 50_000_000,  // System clock frequency in Hz
+    parameter integer BaudRate = 9600,               // Baud rate
+    parameter integer OverSample = 16                // Oversample value
 )(
-  input  logic i_rst_n,
-  input  logic i_clk,
-  output logic o_baud_clk
+    input  logic i_clk,     // System clock input
+    input  logic i_rst_n,   // Active-low asynchronous reset
+    output logic o_baud_clk // Output clock at baud rate * OverSample
 );
 
-  localparam OverSampleDivider = Divider / OverSample;
-  localparam CounterWidth = $clog2(OverSampleDivider + 1);
+    // Calculate the number of system clock cycles for one cycle of the output frequency
+    localparam integer OutputFrequency = BaudRate * OverSample;
+    localparam integer ClkCyclesPerOutputCycle = SystemClockFreq / (OutputFrequency * 2);
 
-  logic [CounterWidth-1:0] counter;
+    integer counter = 0;
+    logic baud_clk_tmp = 0;
 
-  always_ff @(posedge i_clk, negedge i_rst_n) begin
-    if (!i_rst_n) begin
-      o_baud_clk <= 1'b0;
-      counter      <= OverSampleDivider;
-    end else begin
-      if (counter == '0) begin
-        o_baud_clk <= ~o_baud_clk;
-        counter      <= OverSampleDivider;
-      end else begin
-        counter <= counter - 1'b1;
-      end 
+    always @(posedge i_clk or negedge i_rst_n) begin
+        if (!i_rst_n) begin
+            // Reset condition
+            counter <= 0;
+            baud_clk_tmp <= 0;
+        end else begin
+            // Normal operation
+            if (counter == ClkCyclesPerOutputCycle - 1) begin
+                counter <= 0;
+                baud_clk_tmp <= ~baud_clk_tmp; // Toggle the baud clock
+            end else begin
+                counter <= counter + 1;
+            end
+        end
     end
-  end 
+
+    always @(posedge i_clk or negedge i_rst_n) begin
+        if (!i_rst_n) begin
+            o_baud_clk <= 0;
+        end else begin
+            o_baud_clk <= baud_clk_tmp;
+        end
+    end
 
 endmodule

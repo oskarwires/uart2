@@ -1,10 +1,12 @@
 `timescale 1ns / 1ps
 // Configurable UART module
 module uart #(
-  parameter DataLength = 8,
-  parameter FifoDepth = 8,
-  parameter OverSample = 8,
-  parameter ClkDivider = 216
+  parameter DataLength      = 8,
+  parameter FifoDepth       = 8,
+  parameter OverSample      = 8,
+  parameter BaudRate        = 115200,
+  parameter SystemClockFreq = 50_000_000
+
 )(
   /* Main Signals */
   input  logic        i_rst_n,    /* Sync. active low reset */
@@ -32,6 +34,20 @@ module uart #(
 
   logic fifo_empty; 
 
+  logic uart_rx_fifo_write_en_sync_1, uart_rx_fifo_write_en_sync_2, uart_rx_fifo_write_en_rising;
+  always_ff @(posedge i_clk) begin
+    uart_rx_fifo_write_en_sync_1 <= uart_rx_fifo_write_en;
+    uart_rx_fifo_write_en_sync_2 <= uart_rx_fifo_write_en_sync_1;
+    uart_rx_fifo_write_en_rising <= uart_rx_fifo_write_en_sync_1 & ~uart_rx_fifo_write_en_sync_2;
+  end
+
+
+  logic i_rx_sync_1, i_rx_sync_2;
+  always_ff @(posedge o_baud_clk) begin
+    i_rx_sync_1 <= i_rx;
+    i_rx_sync_2 <= i_rx_sync_1;
+  end
+
   fifo #(
     .DataWidth(DataLength),
     .Depth(FifoDepth)
@@ -39,7 +55,7 @@ module uart #(
     .i_clk,
     .i_rst_n,
     .i_wr_data(uart_rx_data),
-    .i_wr_en(uart_rx_fifo_write_en),
+    .i_wr_en(uart_rx_fifo_write_en_rising),
     .i_rd_en(i_rx_req),
     .o_rd_data(o_rx_data),
     .o_full(),
@@ -47,7 +63,8 @@ module uart #(
   );
 
   uart_baudgen #(
-    .Divider(ClkDivider),
+    .SystemClockFreq(SystemClockFreq),
+    .BaudRate(BaudRate),
     .OverSample(OverSample)
   ) uart_baudgen (
     .i_clk,
@@ -60,7 +77,7 @@ module uart #(
   ) uart_rx (
     .i_clk(o_baud_clk),
     .i_rst_n,
-    .i_rx,
+    .i_rx(i_rx_sync_2),
     .o_rx_data(uart_rx_data),
     .o_fifo_write_en(uart_rx_fifo_write_en),
     .i_strobe(prescaler_strobe),
@@ -69,12 +86,11 @@ module uart #(
   );
 
   uart_prescaler #(
-    .OverSample(8)
+    .OverSample(OverSample)
   ) uart_prescaler (
     .i_clk(o_baud_clk),
     .i_rst_n,
     .i_en(prescaler_en),
-    .i_scaler(16'd8),
     .o_strobe(prescaler_strobe),
     .o_half(prescaler_half)
   );

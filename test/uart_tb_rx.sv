@@ -1,5 +1,6 @@
 `timescale 1ns / 1ps
 module uart_tb();
+
   // Clock period for 50 MHz (20 ns period)
   localparam CLOCK_PERIOD = 20; // in nanoseconds
   localparam DATA_LENGTH = 8;
@@ -7,21 +8,16 @@ module uart_tb();
   localparam CLOCK_FREQUENCY = 50_000_000; // 50 MHz
   localparam UART_BIT_CYCLES = CLOCK_FREQUENCY / BAUD_RATE; // Clock cycles per UART bit
 
-  real UART_BIT_PERIOD_NS = 1_000_000_000.0 / BAUD_RATE; // Bit period in nanoseconds
-  real HALF_BIT_PERIOD_NS = UART_BIT_PERIOD_NS / 2.0;
-
   localparam OVER_SAMPLE = 8;
   localparam FIFO_DEPTH  = 8;
 
-  localparam NUMBER_TRANSMISSION = 3;
+  localparam NUMBER_TRANSMISSION = 10;
  
   logic i_clk, i_rst_n, o_baud_clk;
-  logic i_rx, o_tx;
-  logic o_rx_rdy, o_tx_rdy, i_tx_req, i_rx_req;
+  logic i_rx;
+  logic o_rx_rdy, i_rx_req;
 
   logic [DATA_LENGTH-1:0] o_rx_data;
-  logic [DATA_LENGTH-1:0] i_tx_data;
-
   logic [DATA_LENGTH-1:0] data;
 
   uart #(
@@ -36,14 +32,13 @@ module uart_tb();
     .i_rst_n,
     .i_ctrl(),
     .o_status(),
-    .i_tx_data,
+    .i_tx_data(),
     .o_rx_data,
-    .i_tx_req,
+    .i_tx_req(),
     .i_rx_req,
     .o_rx_rdy,
-    .o_tx_rdy,
     .i_rx,
-    .o_tx,
+    .o_tx(),
     .i_cts(),
     .o_rts()
   );
@@ -54,43 +49,47 @@ module uart_tb();
 
   int random_wait;
 
-  logic [DATA_LENGTH-1:0] recieved_data;
-
   initial begin
     $dumpfile("uart_tb.vcd"); // Initialize VCD dump
     $dumpvars(0, uart_tb);    // Dump all variables in this module
     
     // Initial Signal Stimuli
     i_rst_n  <= 1'b0; /* Assert Reset */
-    i_tx_req <= 0;
+    i_rx_req <= 0;
+    i_rx <= 1'b1;
     repeat (2) @(posedge i_clk);
     i_rst_n  <= 1'b1;
+
     repeat (2) @(posedge i_clk);
-    
-    assert (o_tx_rdy == 1'b1) else $error("Transmit not ready"); // Should be ready at startup
 
     for (int i = 0; i < NUMBER_TRANSMISSION; i++) begin
-      wait (o_tx_rdy);
       // Generate a random byte
       data = $urandom;
-
-      i_tx_req <= 1;
-      i_tx_data <= data;
-      @(posedge i_clk);
-      i_tx_req <= 0;
-
-      // Wait for the start bit (assuming UART TX idles high)
-      @(negedge o_tx);
-      
-      // Wait half a bit period to align to the middle of bits
-      #(HALF_BIT_PERIOD_NS);
-      
-      // Read each data bit
-      for (int j = 0; j < DATA_LENGTH; j++) begin
-          #(UART_BIT_PERIOD_NS);
-          recieved_data[j] = o_tx; // Sample the data bit
+ 
+      // Start bit (0)
+      i_rx <= 0;
+      repeat(UART_BIT_CYCLES) @(posedge i_clk);
+  
+      // Transmitting 8 data bits
+      for (int i = 0; i < 8; i++) begin
+        i_rx <= data[i];      
+        repeat(UART_BIT_CYCLES) @(posedge i_clk);
       end
-      assert (recieved_data == data) else $error("Mismatch: input TX data %b does not match serial data outputted %b", data, recieved_data);
+  
+      // Stop bit (1)
+      i_rx <= 1;
+  
+      wait(o_rx_rdy)
+
+      random_wait = $urandom_range(0,10); // Add random delay before reading from RX FIFO
+      repeat(random_wait) @(posedge i_clk);
+
+      i_rx_req <= 1;
+      @(posedge i_clk);
+
+      assert (o_rx_data == data) else $error("Mismatch: transmitted data %b does not match received data %b", data, o_rx_data);
+      i_rx_req <= 0;
+      repeat (300) @(posedge i_clk);
     end
    
     repeat (100) @(posedge i_clk);

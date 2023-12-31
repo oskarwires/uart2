@@ -3,7 +3,7 @@
 module fifo #(
   parameter  DataWidth = 8,
   parameter  Depth     = 8,
-  parameter  FWFT      = 0, // First-Word Fall-Through
+  parameter  FWFT      = 1, // First-Word Fall-Through
   localparam PtrWidth  = $clog2(Depth)
 )(
   input  logic                 i_clk,

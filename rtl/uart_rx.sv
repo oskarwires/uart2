@@ -17,7 +17,7 @@ module uart_rx #(
   output logic                  o_prescaler_en,
   output logic                  o_parity_error,
   output logic                  o_stop_bit_error,
-  output logic                  o_fifo_write_en	
+  output logic                  o_rx_fifo_write_en	
 );
  
   localparam counter_width = $clog2(DataLength);
@@ -85,20 +85,20 @@ module uart_rx #(
 
   always_comb begin
     unique case (curr_state)
-      RESET:  {o_prescaler_en, counter_rst_n, o_fifo_write_en, shift_reg_en} = 4'b0000;
-      WAIT:   {o_prescaler_en, counter_rst_n, o_fifo_write_en, shift_reg_en} = 4'b0000;
-      START:  {o_prescaler_en, counter_rst_n, o_fifo_write_en, shift_reg_en} = 4'b1000;
-      LOAD:   {o_prescaler_en, counter_rst_n, o_fifo_write_en, shift_reg_en} = 4'b1101;
-      PARITY: {o_prescaler_en, counter_rst_n, o_fifo_write_en, shift_reg_en} = 4'b1000;
-      STOP:   {o_prescaler_en, counter_rst_n, o_fifo_write_en, shift_reg_en} = 4'b1000;
-      READY:  {o_prescaler_en, counter_rst_n, o_fifo_write_en, shift_reg_en} = 4'b0010;
+      RESET:  {o_prescaler_en, counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b0000;
+      WAIT:   {o_prescaler_en, counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b0000;
+      START:  {o_prescaler_en, counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b1000;
+      LOAD:   {o_prescaler_en, counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b1101;
+      PARITY: {o_prescaler_en, counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b1000;
+      STOP:   {o_prescaler_en, counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b1000;
+      READY:  {o_prescaler_en, counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b0010;
     endcase
   end
 
   /* Shift Register */
   always_ff @(posedge i_clk, negedge i_rst_n)
     if (!i_rst_n)
-      o_rx_data <= 0;
+      o_rx_data <= '0;
     else if (i_half && shift_reg_en)
       o_rx_data <= {i_rx, o_rx_data[DataLength-1:1]};
   

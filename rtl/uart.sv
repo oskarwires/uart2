@@ -19,6 +19,7 @@ module uart #(
   input  logic        i_tx_req,   /* Request to send */
   input  logic        i_rx_req,   /* Request to read */
   output logic        o_rx_rdy,   /* Data in RX FIFO */
+  output logic        o_tx_rdy,   /* TX FIFO Not Full */
   output logic        o_baud_clk, /* Baud Clk For Testing */
   /* UART Signals */
   input  logic        i_rx,
@@ -41,6 +42,13 @@ module uart #(
     uart_rx_fifo_write_en_rising <= uart_rx_fifo_write_en_sync_1 & ~uart_rx_fifo_write_en_sync_2;
   end
 
+  logic uart_tx_fifo_read_en, uart_tx_fifo_read_en_sync_1, uart_tx_fifo_read_en_sync_2, uart_tx_fifo_read_en_rising;
+  always_ff @(posedge i_clk) begin
+    uart_tx_fifo_read_en_sync_1 <= uart_tx_fifo_read_en;
+    uart_tx_fifo_read_en_sync_2 <= uart_tx_fifo_read_en_sync_1;
+    uart_tx_fifo_read_en_rising <= uart_tx_fifo_read_en_sync_1 & ~uart_tx_fifo_read_en_sync_2;
+  end
+
 
   logic i_rx_sync_1, i_rx_sync_2;
   always_ff @(posedge o_baud_clk) begin
@@ -59,7 +67,36 @@ module uart #(
     .i_rd_en(i_rx_req),
     .o_rd_data(o_rx_data),
     .o_full(),
-    .o_empty(fifo_empty)
+    .o_empty(rx_fifo_empty)
+  );
+
+  logic tx_fifo_full, tx_fifo_empty;
+  logic [DataLength-1:0] uart_tx_fifo_data;
+
+
+  fifo #(
+    .DataWidth(DataLength),
+    .Depth(FifoDepth)
+  ) fifo_tx (
+    .i_clk,
+    .i_rst_n,
+    .i_wr_data(i_tx_data),
+    .i_wr_en(i_tx_req),
+    .i_rd_en(uart_tx_fifo_read_en_rising),
+    .o_rd_data(uart_tx_fifo_data),
+    .o_full(tx_fifo_full),
+    .o_empty(tx_fifo_empty)
+  );
+
+  uart_tx #(
+    .DataLength(DataLength)
+  ) uart_tx (
+    .i_clk(o_baud_clk),
+    .i_rst_n,
+    .o_tx,
+    .i_tx_fifo_data(uart_tx_fifo_data),
+    .i_tx_fifo_empty(tx_fifo_empty),
+    .o_tx_fifo_read_en(uart_tx_fifo_read_en)
   );
 
   uart_baudgen #(
@@ -79,7 +116,7 @@ module uart #(
     .i_rst_n,
     .i_rx(i_rx_sync_2),
     .o_rx_data(uart_rx_data),
-    .o_fifo_write_en(uart_rx_fifo_write_en),
+    .o_rx_fifo_write_en(uart_rx_fifo_write_en),
     .i_strobe(prescaler_strobe),
     .i_half(prescaler_half),
     .o_prescaler_en(prescaler_en)
@@ -95,7 +132,8 @@ module uart #(
     .o_half(prescaler_half)
   );
 
-  assign o_rx_rdy = ~fifo_empty;
+  assign o_rx_rdy = ~rx_fifo_empty;
+  assign o_tx_rdy = ~tx_fifo_full;
  
 endmodule
 

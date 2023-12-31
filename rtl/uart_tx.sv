@@ -10,14 +10,17 @@ module uart_tx #(
   input  logic 	                i_rst_n,
   /* UART Signals */
   output logic                  o_tx,
+  /* FIFO Signals */
   input  logic [DataLength-1:0] i_tx_fifo_data,
-  /* Sample Timing */
   input  logic                  i_tx_fifo_empty,
   output logic                  o_tx_fifo_read_en
 );
 
   localparam ClkCounterWidth = $clog2(OverSample);
   localparam BitCounterWidth = $clog2(DataLength);
+
+  logic [ClkCounterWidth-1:0] clk_counter;
+  logic [BitCounterWidth-1:0] bit_counter;
 
   typedef enum logic [2:0] {
     RESET  = 3'b000,
@@ -31,17 +34,16 @@ module uart_tx #(
 
   states_t curr_state, next_state;
 
-  logic [ClkCounterWidth-1:0] clk_counter;
-  logic [BitCounterWidth-1:0] bit_counter;
-
   logic shift_reg_en, clk_counter_en, bit_counter_en;
+  logic o_tx_d;
 
-  // State controller
+  // State Controller
   always_ff @(posedge i_clk, negedge i_rst_n) begin
     if (!i_rst_n) curr_state <= RESET;
     else          curr_state <= next_state;
   end
 
+  // Next State Logic Controller
   always_comb begin
     unique case (curr_state)
       RESET:
@@ -66,16 +68,15 @@ module uart_tx #(
           next_state = DATA;
       STOP:
         if (clk_counter == '0)
-          next_state = WAIT;
+          next_state = DONE;
         else
           next_state = STOP;
       DONE:
         next_state = WAIT;
     endcase
   end 
-
-  logic o_tx_d;
-
+  
+  // FSM Output Controller
   always_comb begin
     unique case (curr_state)
       RESET:  {clk_counter_en, bit_counter_en, o_tx_fifo_read_en, o_tx_d} = {3'b000, 1'b1};
@@ -84,17 +85,17 @@ module uart_tx #(
       DATA:   {clk_counter_en, bit_counter_en, o_tx_fifo_read_en, o_tx_d} = {3'b110, i_tx_fifo_data[bit_counter]};
       PARITY: {clk_counter_en, bit_counter_en, o_tx_fifo_read_en, o_tx_d} = {3'b100, 1'b1};
       STOP:   {clk_counter_en, bit_counter_en, o_tx_fifo_read_en, o_tx_d} = {3'b100, 1'b1};
-      DONE:   {clk_counter_en, bit_counter_en, o_tx_fifo_read_en, o_tx_d} = {3'b001, 1'b1};
+      DONE:   {clk_counter_en, bit_counter_en, o_tx_fifo_read_en, o_tx_d} = {3'b001, 1'b1}; // We read on the last stage as we utilize the FIFOs First-Word-Fall-Through, so this is just to load in the next data
     endcase
   end 
 
-  /* TX Flip Flop */
+  /* TX Flip Flop, Sychronises the combinatorial output o_tx_d */
   always_ff @(posedge i_clk, negedge i_rst_n)
     if (!i_rst_n)
-      o_tx <= '1;
+      o_tx <= '1; // Reset holds high
     else
       o_tx <= o_tx_d;
-   
+
   /* Decrementing Clk Counter */
   always_ff @(posedge i_clk, negedge i_rst_n)
     if (!i_rst_n || !clk_counter_en)

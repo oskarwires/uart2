@@ -13,7 +13,7 @@ module uart_tb();
   localparam OVER_SAMPLE = 8;
   localparam FIFO_DEPTH  = 8;
 
-  localparam NUMBER_TRANSMISSION = 3;
+  localparam NUMBER_TRANSMISSION = 8;
  
   logic i_clk, i_rst_n, o_baud_clk;
   logic i_rx, o_tx;
@@ -22,7 +22,7 @@ module uart_tb();
   logic [DATA_LENGTH-1:0] o_rx_data;
   logic [DATA_LENGTH-1:0] i_tx_data;
 
-  logic [DATA_LENGTH-1:0] data;
+  bit [DATA_LENGTH-1:0] test_vectors[NUMBER_TRANSMISSION];
 
   uart #(
     .DataLength(DATA_LENGTH),
@@ -57,29 +57,30 @@ module uart_tb();
   logic [DATA_LENGTH-1:0] recieved_data;
 
   initial begin
-    $dumpfile("uart_tb.vcd"); // Initialize VCD dump
-    $dumpvars(0, uart_tb);    // Dump all variables in this module
+    //$dumpfile("uart_tb.vcd"); // Initialize VCD dump
+    //$dumpvars(0, uart_tb);    // Dump all variables in this module
     
     // Initial Signal Stimuli
-    i_rst_n  <= 1'b0; /* Assert Reset */
+    i_rst_n  <= 1'b0; // Assert reset
     i_tx_req <= 0;
     repeat (2) @(posedge i_clk);
     i_rst_n  <= 1'b1;
     repeat (2) @(posedge i_clk);
     
-    assert (o_tx_rdy == 1'b1) else $error("Transmit not ready"); // Should be ready at startup
-
+    assert (o_tx_rdy == 1'b1) else $error("Transmit not ready at startup"); // Should be ready at startup
+    
+    // Load data into TX FIFO
     for (int i = 0; i < NUMBER_TRANSMISSION; i++) begin
       wait (o_tx_rdy);
-      // Generate a random byte
-      data = $urandom;
-
+      test_vectors[i] = $urandom;
       i_tx_req <= 1;
-      i_tx_data <= data;
+      i_tx_data <= test_vectors[i];
       @(posedge i_clk);
       i_tx_req <= 0;
+    end
 
-      // Wait for the start bit (assuming UART TX idles high)
+    for (int i = 0; i < NUMBER_TRANSMISSION; i++) begin
+      // Wait for the start bit
       @(negedge o_tx);
       
       // Wait half a bit period to align to the middle of bits
@@ -87,10 +88,13 @@ module uart_tb();
       
       // Read each data bit
       for (int j = 0; j < DATA_LENGTH; j++) begin
-          #(UART_BIT_PERIOD_NS);
+          #(UART_BIT_PERIOD_NS); // Wait bit period
           recieved_data[j] = o_tx; // Sample the data bit
       end
-      assert (recieved_data == data) else $error("Mismatch: input TX data %b does not match serial data outputted %b", data, recieved_data);
+      #(UART_BIT_PERIOD_NS); // Wait for stop bit
+      // TODO: ADD PARITY BIT TESTING
+      assert(o_tx == 1'b1) else $error("No Stop bit detected"); // Stop bit requirement
+      assert (recieved_data == test_vectors[i]) else $error("Mismatch: input TX data %b does not match serial data outputted %b", test_vectors[i], recieved_data);
     end
    
     repeat (100) @(posedge i_clk);

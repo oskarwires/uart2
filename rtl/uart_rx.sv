@@ -1,6 +1,7 @@
 module uart_rx #(
-  parameter Parity = 1'b0,
-  parameter StopBit = 1'b1,
+  parameter Parity     = 1'b0,
+  parameter ParityEven = 1'b0, // 1 if even, 0 if odd
+  parameter StopBit    = 1'b1,
   parameter DataLength = 8
   //params
 )(
@@ -83,6 +84,7 @@ module uart_rx #(
     endcase
   end
 
+  // FSM Output Controller
   always_comb begin
     unique case (curr_state)
       RESET:  {o_prescaler_en, counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b0000;

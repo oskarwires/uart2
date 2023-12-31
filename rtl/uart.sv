@@ -11,18 +11,18 @@ module uart #(
   parameter FlowControl     = 1'b0  // 1 if enabled, 0 if disabled (RTS and CTS)
 )(
   /* Main Signals */
-  input  logic        i_rst_n,    /* Sync. active low reset */
+  input  logic        i_rst_n,    /* Async active low reset */
   input  logic        i_clk,
   /* Module Signals */
-  input  logic [31:0] i_ctrl,     /* Control Register */
   output logic [31:0] o_status,   /* Status Register */
+  input  logic [31:0] i_ctrl,     /* Control Register */
   input  logic [7:0]  i_tx_data,  /* Byte to send */
   output logic [7:0]  o_rx_data,  /* Recieved byte */
   input  logic        i_tx_req,   /* Request to send */
   input  logic        i_rx_req,   /* Request to read */
   output logic        o_rx_rdy,   /* Data in RX FIFO */
   output logic        o_tx_rdy,   /* TX FIFO Not Full */
-  output logic        o_baud_clk, /* Baud Clk For Testing */
+  output logic        o_baud_clk, /* Baud Clk (For Testing) */
   /* UART Signals */
   input  logic        i_rx,
   output logic        o_tx,
@@ -33,37 +33,54 @@ module uart #(
   logic prescaler_half, prescaler_strobe, prescaler_en;  
 
   logic [DataLength-1:0] uart_rx_data;
-  logic uart_rx_fifo_write_en;
+  logic uart_rx_fifo_write_en, uart_tx_fifo_read_en;
 
   logic fifo_empty; 
 
   logic uart_rx_fifo_write_en_sync_1, uart_rx_fifo_write_en_sync_2, uart_rx_fifo_write_en_rising;
+  logic uart_tx_fifo_read_en_sync_1,  uart_tx_fifo_read_en_sync_2,  uart_tx_fifo_read_en_rising;
 
   logic tx_fifo_full, tx_fifo_empty;
   logic rx_fifo_full, rx_fifo_empty;
   logic [DataLength-1:0] uart_tx_fifo_data;
 
   /* ----- SYNC FFs ----- */
-  // UART RX Write Request Double FF Synchroniser (because cross clock domain)
-  always_ff @(posedge i_clk) begin
-    uart_rx_fifo_write_en_sync_1 <= uart_rx_fifo_write_en;
-    uart_rx_fifo_write_en_sync_2 <= uart_rx_fifo_write_en_sync_1;
-    uart_rx_fifo_write_en_rising <= uart_rx_fifo_write_en_sync_1 & ~uart_rx_fifo_write_en_sync_2;
+  // UART RX Write Request Double FF Synchroniser (because cross clock domain: baud clk -> system clock)
+  always_ff @(posedge i_clk, negedge i_rst_n) begin
+    if (!i_rst_n) begin
+      uart_rx_fifo_write_en_sync_1 <= '0;
+      uart_rx_fifo_write_en_sync_2 <= '0;
+      uart_rx_fifo_write_en_rising <= '0;
+    end else begin
+      uart_rx_fifo_write_en_sync_1 <= uart_rx_fifo_write_en;
+      uart_rx_fifo_write_en_sync_2 <= uart_rx_fifo_write_en_sync_1;
+      uart_rx_fifo_write_en_rising <= uart_rx_fifo_write_en_sync_1 & ~uart_rx_fifo_write_en_sync_2;
+    end
   end
 
-  // UART TX Read Request Double FF Synchroniser
-  logic uart_tx_fifo_read_en, uart_tx_fifo_read_en_sync_1, uart_tx_fifo_read_en_sync_2, uart_tx_fifo_read_en_rising;
-  always_ff @(posedge i_clk) begin
-    uart_tx_fifo_read_en_sync_1 <= uart_tx_fifo_read_en;
-    uart_tx_fifo_read_en_sync_2 <= uart_tx_fifo_read_en_sync_1;
-    uart_tx_fifo_read_en_rising <= uart_tx_fifo_read_en_sync_1 & ~uart_tx_fifo_read_en_sync_2;
+  // UART TX Read Request Double FF Synchroniser, clock domain: baud clk -> system clock
+  always_ff @(posedge i_clk, negedge i_rst_n) begin
+    if (!i_rst_n) begin
+      uart_tx_fifo_read_en_sync_1 <= '0;
+      uart_tx_fifo_read_en_sync_2 <= '0;
+      uart_tx_fifo_read_en_rising <= '0;
+    end else begin
+      uart_tx_fifo_read_en_sync_1 <= uart_tx_fifo_read_en;
+      uart_tx_fifo_read_en_sync_2 <= uart_tx_fifo_read_en_sync_1;
+      uart_tx_fifo_read_en_rising <= uart_tx_fifo_read_en_sync_1 & ~uart_tx_fifo_read_en_sync_2;
+    end
   end
 
-  // Input RX Serial Stream Double FF Synchroniser
+  // Input RX Serial Stream Double FF Synchroniser, clock domain: async input -> baud clock
   logic i_rx_sync_1, i_rx_sync_2;
-  always_ff @(posedge o_baud_clk) begin
-    i_rx_sync_1 <= i_rx;
-    i_rx_sync_2 <= i_rx_sync_1;
+  always_ff @(posedge o_baud_clk, negedge i_rst_n) begin
+    if (!i_rst_n) begin
+      i_rx_sync_1 <= '1; // Hold high on reset to prevent start bit detection
+      i_rx_sync_2 <= '1;
+    end else begin
+      i_rx_sync_1 <= i_rx;
+      i_rx_sync_2 <= i_rx_sync_1;
+    end
   end
 
   fifo #(

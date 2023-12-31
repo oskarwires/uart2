@@ -15,7 +15,7 @@ module uart_tb();
   localparam FifoDepth   = 8;
   localparam FlowControl = 1;
 
-  localparam NumberTest = 4;
+  localparam NumberTest = 8;
  
   logic i_clk, i_rst_n, o_baud_clk;
   logic i_rx, o_tx, i_cts, o_rts;
@@ -138,33 +138,39 @@ module uart_tb();
     
     assert (o_tx_rdy == 1'b1) else $error("Error: o_tx_rdy != 1 at startup"); // Should be ready at startup
     
-    /* ----- TESTING TX ----- */
-    // Load data into TX FIFO
-    for (int i = 0; i < NumberTest; i++) begin
-      test_tx_vectors[i] = $urandom;
-      fifo_tx_write(test_tx_vectors[i]);
-    end
- 
-    // Read transmitted uart data
-    for (int i = 0; i < NumberTest; i++) begin
-      // Wait for the start bit
-      recieve_uart_stream(recieved_uart_tx_data);
-      assert (recieved_uart_tx_data == test_tx_vectors[i]) else $error("Mismatch: input TX data %b does not match serial data outputted %b", test_tx_vectors[i], recieved_uart_tx_data);
-    end
-
-    /* ----- TESTING RX ----- */
-    // Transmit uart data stream
-    for (int i = 0; i < NumberTest; i++) begin
-      test_rx_vectors[i] = $urandom;
-      transmit_uart_stream(test_rx_vectors[i]);
-    end
-
-    // Read recieved uart data
-    for (int i = 0; i < NumberTest; i++) begin
-      fifo_rx_read(recieved_uart_rx_data);
-      assert (recieved_uart_rx_data == test_rx_vectors[i]) else $error("Mismatch: input TX data %b does not match serial data outputted %b", test_rx_vectors[i], recieved_uart_rx_data);
-    end
-   
+    fork // Test RX and TX simultaneously
+      /* ----- TESTING TX ----- */
+      begin
+        // Load data into TX FIFO
+        for (int i = 0; i < NumberTest; i++) begin
+          test_tx_vectors[i] = $urandom;
+          fifo_tx_write(test_tx_vectors[i]);
+        end
+     
+        // Read transmitted uart data
+        for (int i = 0; i < NumberTest; i++) begin
+          // Wait for the start bit
+          recieve_uart_stream(recieved_uart_tx_data);
+          assert (recieved_uart_tx_data == test_tx_vectors[i]) else $error("Mismatch: input TX data %b does not match serial data outputted %b", test_tx_vectors[i], recieved_uart_tx_data);
+        end
+      end
+  
+      /* ----- TESTING RX ----- */
+      begin
+        // Transmit uart data stream
+        for (int i = 0; i < NumberTest; i++) begin
+          test_rx_vectors[i] = $urandom;
+          transmit_uart_stream(test_rx_vectors[i]);
+        end
+    
+        // Read recieved uart data
+        for (int i = 0; i < NumberTest; i++) begin
+          fifo_rx_read(recieved_uart_rx_data);
+          assert (recieved_uart_rx_data == test_rx_vectors[i]) else $error("Mismatch: input TX data %b does not match serial data outputted %b", test_rx_vectors[i], recieved_uart_rx_data);
+        end
+      end
+    join
+    
     repeat (100) @(posedge i_clk);
 
     $display("UART TB test complete");

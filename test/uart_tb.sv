@@ -10,13 +10,15 @@ module uart_tb();
   real UartBitPeriodNs = 1_000_000_000.0 / BaudRate; // Bit period in nanoseconds
   real HalfBitPeriodNs = UartBitPeriodNs / 2.0;
 
-  localparam OverSample = 8;
-  localparam FifoDepth  = 8;
+  /* UUT Params */
+  localparam OverSample  = 8;
+  localparam FifoDepth   = 8;
+  localparam FlowControl = 1;
 
   localparam NumberTest = 4;
  
   logic i_clk, i_rst_n, o_baud_clk;
-  logic i_rx, o_tx;
+  logic i_rx, o_tx, i_cts, o_rts;
   logic o_rx_rdy, o_tx_rdy, i_tx_req, i_rx_req;
 
   logic [DataLength-1:0] o_rx_data;
@@ -33,7 +35,8 @@ module uart_tb();
     .FifoDepth(FifoDepth),
     .OverSample(OverSample),
     .BaudRate(BaudRate),
-    .SystemClockFreq(ClockFrequency)
+    .SystemClockFreq(ClockFrequency),
+    .FlowControl(FlowControl)
   ) uut (
     .i_clk,
     .o_baud_clk,
@@ -48,8 +51,8 @@ module uart_tb();
     .o_tx_rdy,
     .i_rx,
     .o_tx,
-    .i_cts(),
-    .o_rts()
+    .i_cts,
+    .o_rts
   );
  
   // Task to write to fifo_tx
@@ -128,11 +131,12 @@ module uart_tb();
     i_tx_req <= '0;
     i_rx_req <= '0;
     i_rx     <= '1; // Hold the RX line high
+    i_cts    <= '1; // Permit the UUT to send
     repeat (2) @(posedge i_clk);
     i_rst_n  <= '1;
     repeat (2) @(posedge i_clk);
     
-    assert (o_tx_rdy == 1'b1) else $error("Transmit not ready at startup"); // Should be ready at startup
+    assert (o_tx_rdy == 1'b1) else $error("Error: o_tx_rdy != 1 at startup"); // Should be ready at startup
     
     /* ----- TESTING TX ----- */
     // Load data into TX FIFO

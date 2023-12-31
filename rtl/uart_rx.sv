@@ -3,9 +3,7 @@ module uart_rx #(
   parameter ParityEven = 1'b0, // 1 if even, 0 if odd
   parameter StopBit    = 1'b1,
   parameter DataLength = 8
-  //params
 )(
-  //i/o
   /* Main Signals */
   input  logic                  i_clk, // Assuming this is at baudrate * oversampling
   input  logic 	                i_rst_n,
@@ -16,9 +14,11 @@ module uart_rx #(
   input  logic                  i_strobe,
   input  logic                  i_half,
   output logic                  o_prescaler_en,
+  /* FIFO Signals */
+  output logic                  o_rx_fifo_write_en,
+  /* Error Signals */
   output logic                  o_parity_error,
-  output logic                  o_stop_bit_error,
-  output logic                  o_rx_fifo_write_en	
+  output logic                  o_stop_bit_error
 );
  
   localparam counter_width = $clog2(DataLength);

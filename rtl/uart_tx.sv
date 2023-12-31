@@ -1,15 +1,16 @@
 module uart_tx #(
-  parameter Parity = 1'b0,
-  parameter StopBit = 1'b1,
-  parameter DataLength = 8,
-  parameter OverSample = 8
+  parameter Parity      = 1'b0,
+  parameter StopBit     = 1'b1,
+  parameter DataLength  = 8,
+  parameter OverSample  = 8,
+  parameter FlowControl = 1'b0
 )(
-  //i/o
   /* Main Signals */
   input  logic                  i_clk, // Assuming this is at baudrate * oversampling
   input  logic 	                i_rst_n,
   /* UART Signals */
   output logic                  o_tx,
+  input  logic                  i_cts,
   /* FIFO Signals */
   input  logic [DataLength-1:0] i_tx_fifo_data,
   input  logic                  i_tx_fifo_empty,
@@ -49,7 +50,7 @@ module uart_tx #(
       RESET:
         next_state = WAIT;
       WAIT:
-        if (!i_tx_fifo_empty)
+        if (!i_tx_fifo_empty && (FlowControl ? i_cts : 1)) // Start transmitting if data in TX FIFO (and if FlowControl == 1, && i_cts)
           next_state = START;
         else 
           next_state = WAIT;

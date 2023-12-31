@@ -5,8 +5,10 @@ module uart #(
   parameter FifoDepth       = 8,
   parameter OverSample      = 8,
   parameter BaudRate        = 115200,
-  parameter SystemClockFreq = 50_000_000
-
+  parameter SystemClockFreq = 50_000_000,
+  parameter Parity          = 1'b0,
+  parameter ParityEven      = 1'b0, // 1 if even, 0 if odd
+  parameter FlowControl     = 1'b0  // 1 if enabled, 0 if disabled (RTS and CTS)
 )(
   /* Main Signals */
   input  logic        i_rst_n,    /* Sync. active low reset */
@@ -36,12 +38,20 @@ module uart #(
   logic fifo_empty; 
 
   logic uart_rx_fifo_write_en_sync_1, uart_rx_fifo_write_en_sync_2, uart_rx_fifo_write_en_rising;
+
+  logic tx_fifo_full, tx_fifo_empty;
+  logic rx_fifo_full, rx_fifo_empty;
+  logic [DataLength-1:0] uart_tx_fifo_data;
+
+  /* ----- SYNC FFs ----- */
+  // UART RX Write Request Double FF Synchroniser (because cross clock domain)
   always_ff @(posedge i_clk) begin
     uart_rx_fifo_write_en_sync_1 <= uart_rx_fifo_write_en;
     uart_rx_fifo_write_en_sync_2 <= uart_rx_fifo_write_en_sync_1;
     uart_rx_fifo_write_en_rising <= uart_rx_fifo_write_en_sync_1 & ~uart_rx_fifo_write_en_sync_2;
   end
 
+  // UART TX Read Request Double FF Synchroniser
   logic uart_tx_fifo_read_en, uart_tx_fifo_read_en_sync_1, uart_tx_fifo_read_en_sync_2, uart_tx_fifo_read_en_rising;
   always_ff @(posedge i_clk) begin
     uart_tx_fifo_read_en_sync_1 <= uart_tx_fifo_read_en;
@@ -49,7 +59,7 @@ module uart #(
     uart_tx_fifo_read_en_rising <= uart_tx_fifo_read_en_sync_1 & ~uart_tx_fifo_read_en_sync_2;
   end
 
-
+  // Input RX Serial Stream Double FF Synchroniser
   logic i_rx_sync_1, i_rx_sync_2;
   always_ff @(posedge o_baud_clk) begin
     i_rx_sync_1 <= i_rx;
@@ -66,13 +76,9 @@ module uart #(
     .i_wr_en(uart_rx_fifo_write_en_rising),
     .i_rd_en(i_rx_req),
     .o_rd_data(o_rx_data),
-    .o_full(),
+    .o_full(rx_fifo_full),
     .o_empty(rx_fifo_empty)
   );
-
-  logic tx_fifo_full, tx_fifo_empty;
-  logic [DataLength-1:0] uart_tx_fifo_data;
-
 
   fifo #(
     .DataWidth(DataLength),
@@ -88,12 +94,19 @@ module uart #(
     .o_empty(tx_fifo_empty)
   );
 
+  assign o_rx_rdy = ~rx_fifo_empty;
+  assign o_tx_rdy = ~tx_fifo_full;
+
+  assign o_rts = FlowControl ? ~rx_fifo_full : 1'bz; // Request connected device to send if our Recieve FIFO isn't full
+
   uart_tx #(
-    .DataLength(DataLength)
+    .DataLength(DataLength),
+    .FlowControl(FlowControl)
   ) uart_tx (
     .i_clk(o_baud_clk),
     .i_rst_n,
     .o_tx,
+    .i_cts,
     .i_tx_fifo_data(uart_tx_fifo_data),
     .i_tx_fifo_empty(tx_fifo_empty),
     .o_tx_fifo_read_en(uart_tx_fifo_read_en)
@@ -131,9 +144,6 @@ module uart #(
     .o_strobe(prescaler_strobe),
     .o_half(prescaler_half)
   );
-
-  assign o_rx_rdy = ~rx_fifo_empty;
-  assign o_tx_rdy = ~tx_fifo_full;
  
 endmodule
 

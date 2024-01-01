@@ -228,8 +228,7 @@ module uart_tb();
         assert (recieved_uart_rx_data == test_rx_vectors[i]) else $error("Mismatch: input TX data %b does not match serial data outputted %b", test_rx_vectors[i], recieved_uart_rx_data);
       end
       
-      // Simulate frame overrun (invalid stop bit, which we just simulate as a extra 0 bit before a real stop bit)
-      // Send random packet with wrong parity bit
+      // Simulate frame overrun (invalid stop bit, which we just simulate as just a zero bit in place of the stop bit (1)
       test_rx_vectors[0] = $urandom;
       calculate_parity(test_rx_vectors[0], calculated_uart_rx_parity_bit);
       transmit_uart_stream(test_rx_vectors[0], ~calculated_uart_rx_parity_bit, 1); // Inverted parity bit & no stop bit

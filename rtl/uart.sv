@@ -30,14 +30,10 @@ module uart #(
   output logic        o_rts    
 );
 
-  //localparam RxFifoWidth = DataLength + (ErrorChecking * 2);
-
   logic prescaler_half, prescaler_strobe, prescaler_en;  
  
   logic [DataLength-1:0]  uart_rx_data;
   logic [1:0]             uart_rx_status;
-  //logic [RxFifoWidth-1:0] uart_rx_data_status;
-  //logic [RxFifoWidth-1:0] fifo_rx_data;
 
   logic uart_rx_fifo_write_en, uart_tx_fifo_read_en;
 

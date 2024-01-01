@@ -6,7 +6,7 @@ module uart #(
   parameter OverSample      = 8,
   parameter BaudRate        = 115200,
   parameter SystemClockFreq = 50_000_000,
-  parameter Parity          = 1'b0,
+  parameter ErrorChecking   = 1'b0, // 1 if enabled (Parity and Frame Check), 0 if disabled
   parameter ParityEven      = 1'b0, // 1 if even, 0 if odd
   parameter FlowControl     = 1'b0  // 1 if enabled, 0 if disabled (RTS and CTS)
 )(
@@ -14,7 +14,7 @@ module uart #(
   input  logic        i_rst_n,    /* Async active low reset */
   input  logic        i_clk,
   /* Module Signals */
-  output logic [31:0] o_status,   /* Status Register */
+  output logic [1:0]  o_status,   /* Status for current output packet */
   input  logic [31:0] i_ctrl,     /* Control Register */
   input  logic [7:0]  i_tx_data,  /* Byte to send */
   output logic [7:0]  o_rx_data,  /* Recieved byte */
@@ -30,9 +30,15 @@ module uart #(
   output logic        o_rts    
 );
 
-  logic prescaler_half, prescaler_strobe, prescaler_en;  
+  //localparam RxFifoWidth = DataLength + (ErrorChecking * 2);
 
-  logic [DataLength-1:0] uart_rx_data;
+  logic prescaler_half, prescaler_strobe, prescaler_en;  
+ 
+  logic [DataLength-1:0]  uart_rx_data;
+  logic [1:0]             uart_rx_status;
+  //logic [RxFifoWidth-1:0] uart_rx_data_status;
+  //logic [RxFifoWidth-1:0] fifo_rx_data;
+
   logic uart_rx_fifo_write_en, uart_tx_fifo_read_en;
 
   logic fifo_empty; 
@@ -43,6 +49,7 @@ module uart #(
   logic tx_fifo_full, tx_fifo_empty;
   logic rx_fifo_full, rx_fifo_empty;
   logic [DataLength-1:0] uart_tx_fifo_data;
+
 
   /* ----- SYNC FFs ----- */
   // UART RX Write Request Double FF Synchroniser (because cross clock domain: baud clk -> system clock)
@@ -82,20 +89,37 @@ module uart #(
       i_rx_sync_2 <= i_rx_sync_1;
     end
   end
-
-  fifo #(
-    .DataWidth(DataLength),
-    .Depth(FifoDepth)
-  ) fifo_rx (
-    .i_clk,
-    .i_rst_n,
-    .i_wr_data(uart_rx_data),
-    .i_wr_en(uart_rx_fifo_write_en_rising),
-    .i_rd_en(i_rx_req),
-    .o_rd_data(o_rx_data),
-    .o_full(rx_fifo_full),
-    .o_empty(rx_fifo_empty)
-  );
+  
+  generate 
+    if (ErrorChecking)
+      fifo #(
+        .DataWidth(DataLength+2),
+        .Depth(FifoDepth)
+      ) fifo_rx (
+        .i_clk,
+        .i_rst_n,
+        .i_wr_data({uart_rx_status, uart_rx_data}),
+        .i_wr_en(uart_rx_fifo_write_en_rising),
+        .i_rd_en(i_rx_req),
+        .o_rd_data({o_status, o_rx_data}),
+        .o_full(rx_fifo_full),
+        .o_empty(rx_fifo_empty)
+      );
+    else
+      fifo #(
+        .DataWidth(DataLength),
+        .Depth(FifoDepth)
+      ) fifo_rx (
+        .i_clk,
+        .i_rst_n,
+        .i_wr_data(uart_rx_data),
+        .i_wr_en(uart_rx_fifo_write_en_rising),
+        .i_rd_en(i_rx_req),
+        .o_rd_data(o_rx_data),
+        .o_full(rx_fifo_full),
+        .o_empty(rx_fifo_empty)
+      );
+  endgenerate
 
   fifo #(
     .DataWidth(DataLength),
@@ -118,7 +142,9 @@ module uart #(
 
   uart_tx #(
     .DataLength(DataLength),
-    .FlowControl(FlowControl)
+    .FlowControl(FlowControl),
+    .ErrorChecking(ErrorChecking),
+    .ParityEven(ParityEven)
   ) uart_tx (
     .i_clk(o_baud_clk),
     .i_rst_n,
@@ -140,12 +166,15 @@ module uart #(
   );
 
   uart_rx #(
-    .DataLength(DataLength)
+    .DataLength(DataLength),
+    .ErrorChecking(ErrorChecking),
+    .ParityEven(ParityEven)
   ) uart_rx (
     .i_clk(o_baud_clk),
     .i_rst_n,
     .i_rx(i_rx_sync_2),
     .o_rx_data(uart_rx_data),
+    .o_status(uart_rx_status),
     .o_rx_fifo_write_en(uart_rx_fifo_write_en),
     .i_strobe(prescaler_strobe),
     .i_half(prescaler_half),

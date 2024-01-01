@@ -1,8 +1,8 @@
 module uart_rx #(
-  parameter Parity     = 1'b0,
-  parameter ParityEven = 1'b0, // 1 if even, 0 if odd
-  parameter StopBit    = 1'b1,
-  parameter DataLength = 8
+  parameter ErrorChecking = 1'b0, // 1 if enabled, 0 if disabled
+  parameter ParityEven    = 1'b0, // 1 if even, 0 if odd
+  parameter StopBit       = 1'b1,
+  parameter DataLength    = 8
 )(
   /* Main Signals */
   input  logic                  i_clk, // Assuming this is at baudrate * oversampling
@@ -10,15 +10,14 @@ module uart_rx #(
   /* UART Signals */
   input  logic                  i_rx,
   output logic [DataLength-1:0] o_rx_data,
+  /* Error Signals */
+  output logic [1:0]            o_status, // {framing error, parity error}
   /* Sample Timing */
   input  logic                  i_strobe,
   input  logic                  i_half,
   output logic                  o_prescaler_en,
   /* FIFO Signals */
-  output logic                  o_rx_fifo_write_en,
-  /* Error Signals */
-  output logic                  o_parity_error,
-  output logic                  o_stop_bit_error
+  output logic                  o_rx_fifo_write_en
 );
  
   localparam counter_width = $clog2(DataLength);
@@ -38,7 +37,15 @@ module uart_rx #(
   logic [counter_width-1:0] bit_counter;
   logic counter_rst_n, shift_reg_en;
 
-  logic parity_bit;
+  logic calculated_parity_bit, recieved_parity_bit;
+  logic xor_result;
+
+  logic frame_error;
+  logic parity_error;
+  logic stop_bit_value;
+
+  assign xor_result = ErrorChecking ? ^o_rx_data : 1'bz; // XOR of all bits in packet
+  assign calculated_parity_bit = ParityEven ? xor_result : ~xor_result;
 
   // State controller
   always_ff @(posedge i_clk, negedge i_rst_n) begin
@@ -63,7 +70,7 @@ module uart_rx #(
 	  next_state = START;
       LOAD:
         if (bit_counter == '0 && i_half)
-          case (Parity)
+          case (ErrorChecking)
             0: next_state = STOP;
             1: next_state = PARITY;
           endcase
@@ -75,12 +82,15 @@ module uart_rx #(
         else
           next_state = PARITY; 
       STOP:
-        if (i_half && i_rx) // halfway strobe AND rx == 1 (stop bit)
+        if (i_half)
           next_state = READY;
         else 
           next_state = STOP;
       READY: 
-        next_state   = WAIT;
+        if (i_strobe)
+          next_state = WAIT;
+        else 
+          next_state = READY;
     endcase
   end
 
@@ -93,9 +103,29 @@ module uart_rx #(
       LOAD:   {o_prescaler_en, counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b1101;
       PARITY: {o_prescaler_en, counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b1000;
       STOP:   {o_prescaler_en, counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b1000;
-      READY:  {o_prescaler_en, counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b0010;
+      READY:  {o_prescaler_en, counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b1010;
     endcase
   end
+
+  /* Parity & Frame Error Checking */
+  generate
+    if (ErrorChecking) begin
+      always_ff @(posedge i_clk) begin
+        if (curr_state == PARITY && i_half)
+          recieved_parity_bit <= i_rx;
+        else if (curr_state == STOP && i_half)
+          stop_bit_value <= i_rx;
+      end
+
+      assign parity_error = (calculated_parity_bit != recieved_parity_bit);
+
+      assign frame_error  = ~stop_bit_value; // If stop bit is not 1, we have an framing error (invalid stop bit)
+
+      assign o_status     = {frame_error, parity_error};
+    end else begin
+      assign o_status     = 2'b00;
+    end
+  endgenerate
 
   /* Shift Register */
   always_ff @(posedge i_clk, negedge i_rst_n)

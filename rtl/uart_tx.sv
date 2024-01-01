@@ -1,9 +1,10 @@
 module uart_tx #(
-  parameter Parity      = 1'b0,
-  parameter StopBit     = 1'b1,
-  parameter DataLength  = 8,
-  parameter OverSample  = 8,
-  parameter FlowControl = 1'b0
+  parameter ErrorChecking = 1'b0, // 1 if enabled, 0 if disabled
+  parameter ParityEven    = 1'b0, // 1 if even, 0 if odd
+  parameter StopBit       = 1'b1,
+  parameter DataLength    = 8,
+  parameter OverSample    = 8,
+  parameter FlowControl   = 1'b0
 )(
   /* Main Signals */
   input  logic                  i_clk, // Assuming this is at baudrate * oversampling
@@ -38,6 +39,12 @@ module uart_tx #(
   logic shift_reg_en, clk_counter_en, bit_counter_en;
   logic o_tx_d;
 
+  logic parity_bit;
+  logic xor_result;
+
+  assign xor_result = ErrorChecking ? ^i_tx_fifo_data : 1'bz; // XOR of all bits in packet
+  assign parity_bit = ParityEven ? xor_result : ~xor_result;
+
   // State Controller
   always_ff @(posedge i_clk, negedge i_rst_n) begin
     if (!i_rst_n) curr_state <= RESET;
@@ -61,12 +68,17 @@ module uart_tx #(
           next_state = START;
       DATA:
         if (bit_counter == DataLength - 1 && clk_counter == '0)
-          case (Parity)
+          case (ErrorChecking)
             0: next_state = STOP;
             1: next_state = PARITY;
           endcase
         else
           next_state = DATA;
+      PARITY:
+        if (clk_counter == '0)
+          next_state = STOP;
+        else
+          next_state = PARITY;
       STOP:
         if (clk_counter == '0)
           next_state = DONE;
@@ -84,7 +96,7 @@ module uart_tx #(
       WAIT:   {clk_counter_en, bit_counter_en, o_tx_fifo_read_en, o_tx_d} = {3'b000, 1'b1};
       START:  {clk_counter_en, bit_counter_en, o_tx_fifo_read_en, o_tx_d} = {3'b100, 1'b0};
       DATA:   {clk_counter_en, bit_counter_en, o_tx_fifo_read_en, o_tx_d} = {3'b110, i_tx_fifo_data[bit_counter]};
-      PARITY: {clk_counter_en, bit_counter_en, o_tx_fifo_read_en, o_tx_d} = {3'b100, 1'b1};
+      PARITY: {clk_counter_en, bit_counter_en, o_tx_fifo_read_en, o_tx_d} = {3'b100, parity_bit};
       STOP:   {clk_counter_en, bit_counter_en, o_tx_fifo_read_en, o_tx_d} = {3'b100, 1'b1};
       DONE:   {clk_counter_en, bit_counter_en, o_tx_fifo_read_en, o_tx_d} = {3'b001, 1'b1}; // We read on the last stage as we utilize the FIFOs First-Word-Fall-Through, so this is just to load in the next data
     endcase

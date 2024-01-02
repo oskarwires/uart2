@@ -136,7 +136,9 @@ module uart_rx #(
   
   /* Decrementing Counter */
   always_ff @(posedge i_clk, negedge i_rst_n)
-    if (!i_rst_n || !counter_rst_n)
+    if (!i_rst_n)
+      bit_counter <= '1;
+    else if (!counter_rst_n)
       bit_counter <= '1;
     else if (i_half)
       bit_counter <= bit_counter - 3'b1;  

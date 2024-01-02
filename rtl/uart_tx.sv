@@ -111,16 +111,22 @@ module uart_tx #(
 
   /* Decrementing Clk Counter */
   always_ff @(posedge i_clk, negedge i_rst_n)
-    if (!i_rst_n || !clk_counter_en)
+    if (!i_rst_n)
+      clk_counter <= OverSample - 1;
+    else if (!clk_counter_en)
       clk_counter <= OverSample - 1;
     else
       clk_counter <= clk_counter - 1'b1;  
 
   /* Incrementing Bit Counter */
   always_ff @(posedge i_clk, negedge i_rst_n)
-    if (!i_rst_n || !bit_counter_en)
+    if (!i_rst_n)
+      bit_counter <= '0;
+    else if (!bit_counter_en)
       bit_counter <= '0;
     else if (clk_counter == '0)
       bit_counter <= bit_counter + 1'b1;  
+    else 
+      bit_counter <= bit_counter; // To prevent acting as latch
 
 endmodule

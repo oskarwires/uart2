@@ -16,8 +16,9 @@ module uart_tb();
   localparam FlowControl   = 1;
   localparam ErrorChecking = 1;
   localparam ParityEven    = 1;
+  localparam LoopBack      = 1;
 
-  localparam NumberTest = 8;
+  localparam NumberTest    = 8;
  
   logic i_clk, i_rst_n, o_baud_clk;
   logic i_rx, o_tx, i_cts, o_rts;
@@ -44,7 +45,8 @@ module uart_tb();
     .SystemClockFreq(ClockFrequency),
     .FlowControl(FlowControl),
     .ErrorChecking(ErrorChecking),
-    .ParityEven(ParityEven)
+    .ParityEven(ParityEven),
+    .LoopBack(LoopBack)
   ) uut (
     .i_clk,
     .o_baud_clk,
@@ -168,53 +170,71 @@ module uart_tb();
     i_rst_n  <= '1;
     repeat (2) @(posedge i_clk);
     
-    assert (o_tx_rdy == 1'b1) else $error("Error: o_tx_rdy != 1 at startup"); // Should be ready at startup
+    if (!LoopBack) assert (o_tx_rdy == 1'b1) else $error("Error: o_tx_rdy != 1 at startup"); // Should be ready at startup
     
-    fork // Test RX and TX simultaneously
-      /* ----- TESTING TX ----- */
-      begin
-        // Load data into TX FIFO
-        for (int i = 0; i < NumberTest; i++) begin
-          test_tx_vectors[i] = $urandom;
-          fifo_tx_write(test_tx_vectors[i]);
-        end
-     
-        // Read transmitted uart data
-        for (int i = 0; i < NumberTest; i++) begin
-          // Wait for the start bit
-          recieve_uart_stream(recieved_uart_tx_data, recieved_uart_tx_parity_bit);
-
-          if (ErrorChecking) begin
-            calculate_parity(test_tx_vectors[i], calculated_uart_tx_parity_bit);
-            assert (recieved_uart_tx_parity_bit == calculated_uart_tx_parity_bit) else $error("TX Test: calculated parity bit %b does not match outputted parity bit %b", calculated_uart_tx_parity_bit, recieved_uart_tx_parity_bit);
+    if (!LoopBack) begin
+      fork // Test RX and TX simultaneously
+        /* ----- TESTING TX ----- */
+        begin
+          // Load data into TX FIFO
+          for (int i = 0; i < NumberTest; i++) begin
+            test_tx_vectors[i] = $urandom;
+            fifo_tx_write(test_tx_vectors[i]);
           end
-
-          assert (recieved_uart_tx_data == test_tx_vectors[i]) else $error("TX Test: input TX data %b does not match serial data outputted %b", test_tx_vectors[i], recieved_uart_tx_data);
-        end
-      end
+       
+          // Read transmitted uart data
+          for (int i = 0; i < NumberTest; i++) begin
+            recieve_uart_stream(recieved_uart_tx_data, recieved_uart_tx_parity_bit);
   
-      /* ----- TESTING RX ----- */
-      begin
-        // Transmit uart data stream
-        for (int i = 0; i < NumberTest; i++) begin
-          test_rx_vectors[i] = $urandom;
-          calculate_parity(test_rx_vectors[i], calculated_uart_rx_parity_bit);
-          
-          transmit_uart_stream(test_rx_vectors[i], calculated_uart_rx_parity_bit, 0);
+            if (ErrorChecking) begin
+              calculate_parity(test_tx_vectors[i], calculated_uart_tx_parity_bit);
+              assert (recieved_uart_tx_parity_bit == calculated_uart_tx_parity_bit) else $error("TX Test: calculated parity bit %b does not match outputted parity bit %b",   calculated_uart_tx_parity_bit, recieved_uart_tx_parity_bit);
+            end
+  
+            assert (recieved_uart_tx_data == test_tx_vectors[i]) else $error("TX Test: input TX data %b does not match serial data outputted %b", test_tx_vectors[i], recieved_uart_tx_data);
+          end
         end
     
-        // Read recieved uart data
-        for (int i = 0; i < NumberTest; i++) begin
-          fifo_rx_read(recieved_uart_rx_data);
-          if (ErrorChecking) assert (o_status == 2'b00) else $error("RX Test: Error in UART output status, expected b00 (no error), got %b", o_status);
-          assert (recieved_uart_rx_data == test_rx_vectors[i]) else $error("RX Test: input TX data %b does not match serial data outputted %b", test_rx_vectors[i], recieved_uart_rx_data);
+        /* ----- TESTING RX ----- */
+        begin
+          // Transmit uart data stream
+          for (int i = 0; i < NumberTest; i++) begin
+            test_rx_vectors[i] = $urandom;
+            calculate_parity(test_rx_vectors[i], calculated_uart_rx_parity_bit);
+            
+            transmit_uart_stream(test_rx_vectors[i], calculated_uart_rx_parity_bit, 0);
+          end
+      
+          // Read recieved uart data
+          for (int i = 0; i < NumberTest; i++) begin
+            fifo_rx_read(recieved_uart_rx_data);
+            if (ErrorChecking) assert (o_status == 2'b00) else $error("RX Test: Error in UART output status, expected b00 (no error), got %b", o_status);
+            assert (recieved_uart_rx_data == test_rx_vectors[i]) else $error("RX Test: input TX data %b does not match serial data outputted %b", test_rx_vectors[i], recieved_uart_rx_data);
+          end
         end
-      end
-    join
-    
+      join
+    end else begin
+      fork 
+        /* Loopback testing */
+        begin
+          for (int i = 0; i < 1; i++) begin
+            test_rx_vectors[i] = $urandom;
+            calculate_parity(test_rx_vectors[i], calculated_uart_rx_parity_bit);
+            transmit_uart_stream(test_rx_vectors[i], calculated_uart_rx_parity_bit, 0);
+          end
+        end
+  
+        begin
+          for (int i = 0; i < 1; i++) begin
+            recieve_uart_stream(recieved_uart_rx_data, recieved_uart_rx_parity_bit);
+            assert (recieved_uart_rx_data == test_rx_vectors[i]) else $error("TX Test: input RX data %b does not match serial data outputted %b", test_rx_vectors[i], recieved_uart_rx_data);
+          end
+        end
+      join
+    end 
   
     /* ----- Test error checking ----- */
-    if (ErrorChecking) begin
+    if (ErrorChecking && !LoopBack) begin
       // Simulate wrong parity bit
       for (int i = 0; i < NumberTest; i++) begin
         // Send random packet with wrong parity bit

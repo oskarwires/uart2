@@ -8,7 +8,8 @@ module uart #(
   parameter SystemClockFreq = 50_000_000,
   parameter ErrorChecking   = 1'b0, // 1 if enabled (Parity and Frame Check), 0 if disabled
   parameter ParityEven      = 1'b0, // 1 if even, 0 if odd
-  parameter FlowControl     = 1'b0  // 1 if enabled, 0 if disabled (RTS and CTS)
+  parameter FlowControl     = 1'b0, // 1 if enabled, 0 if disabled (RTS and CTS)
+  parameter LoopBack        = 1'b1 // 1 if enabled, RX is mirrored into TX, no user control
 )(
   /* Main Signals */
   input  logic        i_rst_n,    /* Async active low reset */
@@ -45,7 +46,8 @@ module uart #(
   logic tx_fifo_full, tx_fifo_empty;
   logic rx_fifo_full, rx_fifo_empty;
   logic [DataLength-1:0] uart_tx_fifo_data;
-
+  
+  logic fifo_rx_rd_en;
 
   /* ----- SYNC FFs ----- */
   // UART RX Write Request Double FF Synchroniser (because cross clock domain: baud clk -> system clock)
@@ -110,26 +112,36 @@ module uart #(
         .i_rst_n,
         .i_wr_data(uart_rx_data),
         .i_wr_en(uart_rx_fifo_write_en_rising),
-        .i_rd_en(i_rx_req),
+        .i_rd_en(fifo_rx_rd_en),
         .o_rd_data(o_rx_data),
         .o_full(rx_fifo_full),
         .o_empty(rx_fifo_empty)
       );
   endgenerate
 
-  fifo #(
-    .DataWidth(DataLength),
-    .Depth(FifoDepth)
-  ) fifo_tx (
-    .i_clk,
-    .i_rst_n,
-    .i_wr_data(i_tx_data),
-    .i_wr_en(i_tx_req),
-    .i_rd_en(uart_tx_fifo_read_en_rising),
-    .o_rd_data(uart_tx_fifo_data),
-    .o_full(tx_fifo_full),
-    .o_empty(tx_fifo_empty)
-  );
+  generate 
+    if (LoopBack) begin
+      // We remove the transmit FIFO, and output the RX FIFO data into UART_TX
+      assign uart_tx_fifo_data = o_rx_data;
+      assign fifo_rx_rd_en = uart_tx_fifo_read_en_rising;
+      assign tx_fifo_empty = rx_fifo_empty;
+    end else begin
+      assign fifo_rx_rd_en = i_rx_req;
+      fifo #(
+        .DataWidth(DataLength),
+        .Depth(FifoDepth)
+      ) fifo_tx (
+        .i_clk,
+        .i_rst_n,
+        .i_wr_data(i_tx_data),
+        .i_wr_en(i_tx_req),
+        .i_rd_en(uart_tx_fifo_read_en_rising),
+        .o_rd_data(uart_tx_fifo_data),
+        .o_full(tx_fifo_full),
+        .o_empty(tx_fifo_empty)
+      );
+    end 
+  endgenerate
 
   assign o_rx_rdy = ~rx_fifo_empty;
   assign o_tx_rdy = ~tx_fifo_full;

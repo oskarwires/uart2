@@ -1,11 +1,11 @@
 `timescale 1ns / 1ps
 module uart_tb();
   // Clock period for 50 MHz (20 ns period)
-  localparam ClockPeriod = 20; // in nanoseconds
+  localparam ClockFreq   = 50_000_000;
+  localparam ClockPeriod = 1_000_000_000 / ClockFreq;
   localparam DataLength = 8;
   localparam BaudRate = 115200; // Baud rate
-  localparam ClockFrequency = 50_000_000; // 50 MHz
-  localparam UartBitCycles = ClockFrequency / BaudRate; // Clock cycles per UART bit
+  localparam UartBitCycles = ClockFreq / BaudRate; // Clock cycles per UART bit
 
   real UartBitPeriodNs = 1_000_000_000.0 / BaudRate; // Bit period in nanoseconds
   real HalfBitPeriodNs = UartBitPeriodNs / 2.0;
@@ -17,7 +17,7 @@ module uart_tb();
 
   localparam NumberTest = 8;
  
-  logic i_clk, i_rst_n, o_baud_clk;
+  logic i_clk, i_rst_n;
   logic i_rx, o_tx, i_cts, o_rts;
   logic o_rx_rdy, o_tx_rdy, i_tx_req, i_rx_req;
 
@@ -35,11 +35,10 @@ module uart_tb();
     .FifoDepth(FifoDepth),
     .OverSample(OverSample),
     .BaudRate(BaudRate),
-    .SystemClockFreq(ClockFrequency),
+    .SystemClockFreq(ClockFreq),
     .FlowControl(FlowControl)
   ) uut (
     .i_clk,
-    .o_baud_clk,
     .i_rst_n,
     .i_ctrl(),
     .o_status(),
@@ -75,6 +74,7 @@ module uart_tb();
     @(posedge i_clk);
     rd_data = o_rx_data;
     i_rx_req <= 0;
+    @(posedge i_clk);
   endtask
 
   // Task to read incoming transmit stream from the UUT to test TX
@@ -93,7 +93,6 @@ module uart_tb();
     end
     #(UartBitPeriodNs); // Wait for stop bit
 
-    // TODO: ADD PARITY BIT TESTING
     assert(o_tx == 1'b1) else $error("No Stop bit detected"); // Stop bit requirement
   endtask
 
@@ -141,33 +140,56 @@ module uart_tb();
     fork // Test RX and TX simultaneously
       /* ----- TESTING TX ----- */
       begin
-        // Load data into TX FIFO
+        // Generate random TX packets
         for (int i = 0; i < NumberTest; i++) begin
           test_tx_vectors[i] = $urandom;
-          fifo_tx_write(test_tx_vectors[i]);
         end
-     
-        // Read transmitted uart data
-        for (int i = 0; i < NumberTest; i++) begin
-          // Wait for the start bit
-          recieve_uart_stream(recieved_uart_tx_data);
-          assert (recieved_uart_tx_data == test_tx_vectors[i]) else $error("Mismatch: input TX data %b does not match serial data outputted %b", test_tx_vectors[i], recieved_uart_tx_data);
-        end
+        
+        fork
+          // Load data into TX FIFO and simultaneously read the serial stream output
+          begin
+            // Load data into TX FIFO
+            for (int i = 0; i < NumberTest; i++) begin
+              fifo_tx_write(test_tx_vectors[i]);
+            end
+          end
+       
+          begin
+            // Read transmitted uart data
+            for (int i = 0; i < NumberTest; i++) begin
+              // Wait for the start bit
+              recieve_uart_stream(recieved_uart_tx_data);
+              assert (recieved_uart_tx_data == test_tx_vectors[i]) else $error("TX Error: input TX data %h does not match serial data outputted %h", test_tx_vectors[i], recieved_uart_tx_data);
+            end
+          end
+        join
       end
-  
+     
       /* ----- TESTING RX ----- */
       begin
-        // Transmit uart data stream
+        // Generate random RX packets
         for (int i = 0; i < NumberTest; i++) begin
           test_rx_vectors[i] = $urandom;
-          transmit_uart_stream(test_rx_vectors[i]);
         end
-    
-        // Read recieved uart data
-        for (int i = 0; i < NumberTest; i++) begin
-          fifo_rx_read(recieved_uart_rx_data);
-          assert (recieved_uart_rx_data == test_rx_vectors[i]) else $error("Mismatch: input TX data %b does not match serial data outputted %b", test_rx_vectors[i], recieved_uart_rx_data);
-        end
+
+        // Send serial stream and simultaneously read the RX FIFO
+        fork
+          begin
+            // Transmit uart data stream
+            for (int i = 0; i < NumberTest; i++) begin
+              test_rx_vectors[i] = $urandom;
+              transmit_uart_stream(test_rx_vectors[i]);
+            end
+          end
+          
+          begin
+            // Read recieved uart data
+            for (int i = 0; i < NumberTest; i++) begin
+              fifo_rx_read(recieved_uart_rx_data);
+              assert (recieved_uart_rx_data == test_rx_vectors[i]) else $error("RX Error: Serial data sent %h does not match output RX data %h", test_rx_vectors[i], recieved_uart_rx_data);
+            end
+          end
+        join
       end
     join
     

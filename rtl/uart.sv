@@ -22,7 +22,6 @@ module uart #(
   input  logic        i_rx_req,   /* Request to read */
   output logic        o_rx_rdy,   /* Data in RX FIFO */
   output logic        o_tx_rdy,   /* TX FIFO Not Full */
-  output logic        o_baud_clk, /* Baud Clk (For Testing) */
   /* UART Signals */
   input  logic        i_rx,
   output logic        o_tx,
@@ -73,7 +72,7 @@ module uart #(
 
   // Input RX Serial Stream Double FF Synchroniser, clock domain: async input -> baud clock
   logic i_rx_sync_1, i_rx_sync_2;
-  always_ff @(posedge o_baud_clk, negedge i_rst_n) begin
+  always_ff @(posedge i_clk, negedge i_rst_n) begin
     if (!i_rst_n) begin
       i_rx_sync_1 <= '1; // Hold high on reset to prevent start bit detection
       i_rx_sync_2 <= '1;
@@ -118,9 +117,11 @@ module uart #(
 
   uart_tx #(
     .DataLength(DataLength),
-    .FlowControl(FlowControl)
+    .FlowControl(FlowControl),
+    .SystemClockFreq(SystemClockFreq),
+    .BaudRate(BaudRate)
   ) uart_tx (
-    .i_clk(o_baud_clk),
+    .i_clk,
     .i_rst_n,
     .o_tx,
     .i_cts,
@@ -129,37 +130,16 @@ module uart #(
     .o_tx_fifo_read_en(uart_tx_fifo_read_en)
   );
 
-  uart_baudgen #(
-    .SystemClockFreq(SystemClockFreq),
-    .BaudRate(BaudRate),
-    .OverSample(OverSample)
-  ) uart_baudgen (
-    .i_clk,
-    .i_rst_n,
-    .o_baud_clk(o_baud_clk)
-  );
-
   uart_rx #(
-    .DataLength(DataLength)
+    .DataLength(DataLength),
+    .SystemClockFreq(SystemClockFreq),
+    .BaudRate(BaudRate)
   ) uart_rx (
-    .i_clk(o_baud_clk),
+    .i_clk,
     .i_rst_n,
     .i_rx(i_rx_sync_2),
     .o_rx_data(uart_rx_data),
-    .o_rx_fifo_write_en(uart_rx_fifo_write_en),
-    .i_strobe(prescaler_strobe),
-    .i_half(prescaler_half),
-    .o_prescaler_en(prescaler_en)
-  );
-
-  uart_prescaler #(
-    .OverSample(OverSample)
-  ) uart_prescaler (
-    .i_clk(o_baud_clk),
-    .i_rst_n,
-    .i_en(prescaler_en),
-    .o_strobe(prescaler_strobe),
-    .o_half(prescaler_half)
+    .o_rx_fifo_write_en(uart_rx_fifo_write_en)
   );
  
 endmodule

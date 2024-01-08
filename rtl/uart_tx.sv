@@ -1,12 +1,13 @@
 module uart_tx #(
-  parameter Parity      = 1'b0,
-  parameter StopBit     = 1'b1,
-  parameter DataLength  = 8,
-  parameter OverSample  = 8,
-  parameter FlowControl = 1'b0
+  parameter SystemClockFreq = 50_000_000,
+  parameter BaudRate        = 115200,
+  parameter Parity          = 1'b0,
+  parameter StopBit         = 1'b1,
+  parameter DataLength      = 8,
+  parameter FlowControl     = 1'b0
 )(
   /* Main Signals */
-  input  logic                  i_clk, // Assuming this is at baudrate * oversampling
+  input  logic                  i_clk,
   input  logic 	                i_rst_n,
   /* UART Signals */
   output logic                  o_tx,
@@ -17,7 +18,8 @@ module uart_tx #(
   output logic                  o_tx_fifo_read_en
 );
 
-  localparam ClkCounterWidth = $clog2(OverSample);
+  localparam CyclesPerBit    = SystemClockFreq / BaudRate;
+  localparam ClkCounterWidth = $clog2(CyclesPerBit);
   localparam BitCounterWidth = $clog2(DataLength);
 
   logic [ClkCounterWidth-1:0] clk_counter;
@@ -55,12 +57,12 @@ module uart_tx #(
         else 
           next_state = WAIT;
       START:
-        if (clk_counter == '0)
+        if (clk_counter == (CyclesPerBit - 1))
           next_state = DATA;
         else 
           next_state = START;
       DATA:
-        if (bit_counter == DataLength - 1 && clk_counter == '0)
+        if (bit_counter == (DataLength - 1) && clk_counter == (CyclesPerBit - 1))
           case (Parity)
             0: next_state = STOP;
             1: next_state = PARITY;
@@ -68,7 +70,7 @@ module uart_tx #(
         else
           next_state = DATA;
       STOP:
-        if (clk_counter == '0)
+        if (clk_counter == (CyclesPerBit - 1))
           next_state = DONE;
         else
           next_state = STOP;
@@ -97,18 +99,24 @@ module uart_tx #(
     else
       o_tx <= o_tx_d;
 
-  /* Decrementing Clk Counter */
+  /* Incrementing Clk Counter */
   always_ff @(posedge i_clk, negedge i_rst_n)
-    if (!i_rst_n || !clk_counter_en)
-      clk_counter <= OverSample - 1;
+    if (!i_rst_n)
+      clk_counter <= '0;
+    else if (!clk_counter_en)
+      clk_counter <= '0;
+    else if (clk_counter == CyclesPerBit - 1)
+      clk_counter <= '0;
     else
-      clk_counter <= clk_counter - 1'b1;  
+      clk_counter <= clk_counter + 1'b1;  
 
   /* Incrementing Bit Counter */
   always_ff @(posedge i_clk, negedge i_rst_n)
-    if (!i_rst_n || !bit_counter_en)
+    if (!i_rst_n)
       bit_counter <= '0;
-    else if (clk_counter == '0)
+    else if (!bit_counter_en)
+      bit_counter <= '0;
+    else if (clk_counter == CyclesPerBit - 1)
       bit_counter <= bit_counter + 1'b1;  
 
 endmodule

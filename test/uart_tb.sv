@@ -1,8 +1,7 @@
 `timescale 1ns / 1ps
 module uart_tb();
-  // Clock period for 50 MHz (20 ns period)
-  localparam ClockFreq   = 50_000_000;
-  localparam ClockPeriod = 1_000_000_000 / ClockFreq;
+  localparam ClockFreq   = 133_000_000;
+  localparam real ClockPeriod = 1_000_000_000.0 / ClockFreq;
   localparam DataLength = 8;
   localparam BaudRate = 115200; // Baud rate
   localparam UartBitCycles = ClockFreq / BaudRate; // Clock cycles per UART bit
@@ -15,7 +14,7 @@ module uart_tb();
   localparam FifoDepth   = 8;
   localparam FlowControl = 1;
 
-  localparam NumberTest = 8;
+  localparam NumberTest  = 8;
  
   logic i_clk, i_rst_n;
   logic i_rx, o_tx, i_cts, o_rts;
@@ -169,7 +168,8 @@ module uart_tb();
       begin
         // Generate random RX packets
         for (int i = 0; i < NumberTest; i++) begin
-          test_rx_vectors[i] = $urandom;
+          test_rx_vectors[i] = 8'b01010101;
+          //test_rx_vectors[i] = $urandom;
         end
 
         // Send serial stream and simultaneously read the RX FIFO
@@ -177,7 +177,6 @@ module uart_tb();
           begin
             // Transmit uart data stream
             for (int i = 0; i < NumberTest; i++) begin
-              test_rx_vectors[i] = $urandom;
               transmit_uart_stream(test_rx_vectors[i]);
             end
           end

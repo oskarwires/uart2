@@ -13,8 +13,9 @@ module uart_rx #(
   input  logic                  i_rx,
   output logic [DataLength-1:0] o_rx_data,
   /* FIFO Signals */
-  output logic                  o_rx_fifo_write_en
+  output logic                  o_rx_fifo_write_en,
   /* Error Signals */
+  output logic                  o_rx_error /* Error, from invalid stop bit, needs clearing by rst_n assertion */
 );
   
   localparam CyclesPerBit    = SystemClockFreq / BaudRate;
@@ -23,13 +24,14 @@ module uart_rx #(
   localparam BitCounterWidth = $clog2(DataLength);
  
   typedef enum logic [2:0] {
-    RESET, // 000
-    WAIT,  // 001
-    START, // 010
-    LOAD,  // 011
-    PARITY,// 100
-    STOP,  // 101
-    READY  // 110
+    RESET,  // 000
+    WAIT,   // 001
+    START,  // 010
+    LOAD,   // 011
+    PARITY, // 100
+    STOP,   // 101
+    READY,  // 110
+    ERROR   // 111
   } states_t;
 
   states_t curr_state, next_state;
@@ -71,9 +73,9 @@ module uart_rx #(
         else 
           next_state = WAIT;    // @ loopback
       START:
-        if (half_bit && i_rx) 
-          next_state = WAIT; // If recieve is high halfway through our start bit, we must've read noise
-        else if (strobe_bit)
+        if (strobe_bit && majority_three(three_bits))
+          next_state = WAIT; // If the majority three isn't 0, then we must've had some noise. Cancel the reading
+        else if (strobe_bit && !majority_three(three_bits))
 	        next_state = LOAD;
 	      else
 	        next_state = START;   // @ loopback
@@ -91,25 +93,30 @@ module uart_rx #(
         else
           next_state = PARITY;  // @ loopback
       STOP:
-        if (half_bit && i_rx) // halfway strobe AND rx == 1 (stop bit)
+        if (strobe_bit && majority_three(three_bits)) // halfway strobe AND rx == 1 (stop bit)
           next_state = READY;
+        else if (strobe_bit && !majority_three(three_bits)) // Invalid stop bit
+          next_state = ERROR;
         else 
           next_state = STOP;    // @ loopback
       READY: 
         next_state   = WAIT;
+      ERROR: // Reset must be asserted to get out of error state
+        next_state   = ERROR; // @ loopback
     endcase
   end
 
   // FSM Output Controller
   always_comb begin
     unique case (curr_state)
-      RESET:  {clk_counter_rst_n, bit_counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b0000;
-      WAIT:   {clk_counter_rst_n, bit_counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b0000;
-      START:  {clk_counter_rst_n, bit_counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b1000;
-      LOAD:   {clk_counter_rst_n, bit_counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b1101;
-      PARITY: {clk_counter_rst_n, bit_counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b1000;
-      STOP:   {clk_counter_rst_n, bit_counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b1000;
-      READY:  {clk_counter_rst_n, bit_counter_rst_n, o_rx_fifo_write_en, shift_reg_en} = 4'b0010;
+      RESET:  {clk_counter_rst_n, bit_counter_rst_n, o_rx_fifo_write_en, shift_reg_en, o_rx_error} = 5'b00000;
+      WAIT:   {clk_counter_rst_n, bit_counter_rst_n, o_rx_fifo_write_en, shift_reg_en, o_rx_error} = 5'b00000;
+      START:  {clk_counter_rst_n, bit_counter_rst_n, o_rx_fifo_write_en, shift_reg_en, o_rx_error} = 5'b10000;
+      LOAD:   {clk_counter_rst_n, bit_counter_rst_n, o_rx_fifo_write_en, shift_reg_en, o_rx_error} = 5'b11010;
+      PARITY: {clk_counter_rst_n, bit_counter_rst_n, o_rx_fifo_write_en, shift_reg_en, o_rx_error} = 5'b10000;
+      STOP:   {clk_counter_rst_n, bit_counter_rst_n, o_rx_fifo_write_en, shift_reg_en, o_rx_error} = 5'b10000;
+      READY:  {clk_counter_rst_n, bit_counter_rst_n, o_rx_fifo_write_en, shift_reg_en, o_rx_error} = 5'b00100;
+      ERROR:  {clk_counter_rst_n, bit_counter_rst_n, o_rx_fifo_write_en, shift_reg_en, o_rx_error} = 5'b00001;
     endcase
   end
 

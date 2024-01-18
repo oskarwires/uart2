@@ -22,6 +22,7 @@ module uart #(
   input  logic        i_rx_req,   /* Request to read */
   output logic        o_rx_rdy,   /* Data in RX FIFO */
   output logic        o_tx_rdy,   /* TX FIFO Not Full */
+  output logic        o_rx_error, /* Error in RX, from invalid stop bit, needs clearing by rst_n assertion */
   /* UART Signals */
   input  logic        i_rx,
   output logic        o_tx,
@@ -36,41 +37,12 @@ module uart #(
 
   logic fifo_empty; 
 
-  logic uart_rx_fifo_write_en_sync_1, uart_rx_fifo_write_en_sync_2, uart_rx_fifo_write_en_rising;
-  logic uart_tx_fifo_read_en_sync_1,  uart_tx_fifo_read_en_sync_2,  uart_tx_fifo_read_en_rising;
-
   logic tx_fifo_full, tx_fifo_empty;
   logic rx_fifo_full, rx_fifo_empty;
   logic [DataLength-1:0] uart_tx_fifo_data;
 
   /* ----- SYNC FFs ----- */
-  // UART RX Write Request Double FF Synchroniser (because cross clock domain: baud clk -> system clock)
-  always_ff @(posedge i_clk, negedge i_rst_n) begin
-    if (!i_rst_n) begin
-      uart_rx_fifo_write_en_sync_1 <= '0;
-      uart_rx_fifo_write_en_sync_2 <= '0;
-      uart_rx_fifo_write_en_rising <= '0;
-    end else begin
-      uart_rx_fifo_write_en_sync_1 <= uart_rx_fifo_write_en;
-      uart_rx_fifo_write_en_sync_2 <= uart_rx_fifo_write_en_sync_1;
-      uart_rx_fifo_write_en_rising <= uart_rx_fifo_write_en_sync_1 & ~uart_rx_fifo_write_en_sync_2;
-    end
-  end
-
-  // UART TX Read Request Double FF Synchroniser, clock domain: baud clk -> system clock
-  always_ff @(posedge i_clk, negedge i_rst_n) begin
-    if (!i_rst_n) begin
-      uart_tx_fifo_read_en_sync_1 <= '0;
-      uart_tx_fifo_read_en_sync_2 <= '0;
-      uart_tx_fifo_read_en_rising <= '0;
-    end else begin
-      uart_tx_fifo_read_en_sync_1 <= uart_tx_fifo_read_en;
-      uart_tx_fifo_read_en_sync_2 <= uart_tx_fifo_read_en_sync_1;
-      uart_tx_fifo_read_en_rising <= uart_tx_fifo_read_en_sync_1 & ~uart_tx_fifo_read_en_sync_2;
-    end
-  end
-
-  // Input RX Serial Stream Double FF Synchroniser, clock domain: async input -> baud clock
+  // Input RX Serial Stream Double FF Synchroniser, clock domain: async input -> sys_clk
   logic i_rx_sync_1, i_rx_sync_2;
   always_ff @(posedge i_clk, negedge i_rst_n) begin
     if (!i_rst_n) begin
@@ -89,7 +61,7 @@ module uart #(
     .i_clk,
     .i_rst_n,
     .i_wr_data(uart_rx_data),
-    .i_wr_en(uart_rx_fifo_write_en_rising),
+    .i_wr_en(uart_rx_fifo_write_en),
     .i_rd_en(i_rx_req),
     .o_rd_data(o_rx_data),
     .o_full(rx_fifo_full),
@@ -104,7 +76,7 @@ module uart #(
     .i_rst_n,
     .i_wr_data(i_tx_data),
     .i_wr_en(i_tx_req),
-    .i_rd_en(uart_tx_fifo_read_en_rising),
+    .i_rd_en(uart_tx_fifo_read_en),
     .o_rd_data(uart_tx_fifo_data),
     .o_full(tx_fifo_full),
     .o_empty(tx_fifo_empty)
@@ -139,7 +111,8 @@ module uart #(
     .i_rst_n,
     .i_rx(i_rx_sync_2),
     .o_rx_data(uart_rx_data),
-    .o_rx_fifo_write_en(uart_rx_fifo_write_en)
+    .o_rx_fifo_write_en(uart_rx_fifo_write_en),
+    .o_rx_error
   );
  
 endmodule

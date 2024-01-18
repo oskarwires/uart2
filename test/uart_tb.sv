@@ -29,6 +29,8 @@ module uart_tb();
   logic [DataLength-1:0] recieved_uart_tx_data;
   logic [DataLength-1:0] recieved_uart_rx_data;
 
+  logic o_rx_error;
+
   uart #(
     .DataLength(DataLength),
     .FifoDepth(FifoDepth),
@@ -47,6 +49,7 @@ module uart_tb();
     .i_rx_req,
     .o_rx_rdy,
     .o_tx_rdy,
+    .o_rx_error,
     .i_rx,
     .o_tx,
     .i_cts,
@@ -168,8 +171,7 @@ module uart_tb();
       begin
         // Generate random RX packets
         for (int i = 0; i < NumberTest; i++) begin
-          test_rx_vectors[i] = 8'b01010101;
-          //test_rx_vectors[i] = $urandom;
+          test_rx_vectors[i] = $urandom;
         end
 
         // Send serial stream and simultaneously read the RX FIFO
@@ -191,7 +193,56 @@ module uart_tb();
         join
       end
     join
+
+    /* ----- TEST 2 ----- */
+    // Time to test RX error assertion
+    // We will do this by just not giving a stop bit
+    test_rx_vectors[0] = $urandom;
+
+    i_rx = 0; // Start Bit (0)
+    #(UartBitPeriodNs); // Wait bit period
+
+    // Transmitting DataLength data bits
+    for (int i = 0; i < DataLength; i++) begin
+      i_rx = test_rx_vectors[0][i];      
+      #(UartBitPeriodNs); // Wait bit period
+    end
+    i_rx = 0; // Invalid stop bit, low (0)
+    #(UartBitPeriodNs); // Wait bit period
+    i_rx = 1; // Now we give a stop bit
     
+    repeat (10) @(posedge i_clk);
+
+    assert (o_rx_error == 1'b1) else $error("RX Error: o_rx_error not asserted after invalid stop bit");
+    // Assert reset, should clear error
+
+    i_rst_n  <= '0; // Assert reset
+    repeat (2) @(posedge i_clk);
+    i_rst_n  <= '1;
+    repeat (1) @(posedge i_clk);
+    assert (o_rx_error == 1'b0) else $error("RX Error: o_rx_error not de-asserted after reset");
+    repeat (100) @(posedge i_clk);
+
+    // Does RX still work after?
+    test_rx_vectors[0] = $urandom;
+    transmit_uart_stream(test_rx_vectors[0]);
+    fifo_rx_read(recieved_uart_rx_data);
+    assert (recieved_uart_rx_data == test_rx_vectors[0]) else $error("RX Error: Serial data sent %h does not match output RX data %h (after reset)", test_rx_vectors[0], recieved_uart_rx_data);
+
+    /* ----- TEST 3 ----- */
+    // What about an invalid start bit (let's put i_rx low for a few clock cycles, then hold it high again, simulating noise)
+    i_rx = 0;
+    repeat (20) @(posedge i_clk);
+    i_rx = 1;
+    repeat (10) #(UartBitPeriodNs);
+    assert (o_rx_rdy == 1'b0) else $error("RX Error: incorrectly started sampling on short start bit");
+
+    // Great, now make sure RX still works properly!
+    test_rx_vectors[0] = $urandom;
+    transmit_uart_stream(test_rx_vectors[0]);
+    fifo_rx_read(recieved_uart_rx_data);
+    assert (recieved_uart_rx_data == test_rx_vectors[0]) else $error("RX Error: Serial data sent %h does not match output RX data %h (after bad start bit)", test_rx_vectors[0], recieved_uart_rx_data);
+
     repeat (100) @(posedge i_clk);
 
     $display("UART TB test complete");

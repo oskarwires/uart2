@@ -1,20 +1,20 @@
 `timescale 1ns / 1ps
 module uart_tb();
-  localparam ClockFreq   = 133_000_000;
-  localparam real ClockPeriod = 1_000_000_000.0 / ClockFreq;
-  localparam DataLength = 8;
-  localparam BaudRate = 115200; // Baud rate
-  localparam UartBitCycles = ClockFreq / BaudRate; // Clock cycles per UART bit
-
-  real UartBitPeriodNs = 1_000_000_000.0 / BaudRate; // Bit period in nanoseconds
-  real HalfBitPeriodNs = UartBitPeriodNs / 2.0;
-
   /* UUT Params */
-  localparam OverSample  = 8;
-  localparam FifoDepth   = 8;
-  localparam FlowControl = 1;
+  localparam      BaudRate    = 115200; // Baud rate
+  localparam      FifoDepth   = 8;
+  localparam      FlowControl = 1;
+  localparam      ClockFreq   = 133_000_000;
+  localparam      DataLength  = 8;
 
-  localparam NumberTest  = 8;
+  /* TB Params */
+  localparam      NumberTest  = 8;
+
+  /* Calculated Params */
+  localparam      UartBitCycles   = ClockFreq / BaudRate; // Clock cycles per UART bit
+  localparam real ClockPeriod     = 1_000_000_000.0 / ClockFreq;
+  localparam real UartBitPeriodNs = 1_000_000_000.0 / BaudRate; // Bit period in nanoseconds
+  localparam real HalfBitPeriodNs = UartBitPeriodNs / 2.0;
  
   logic i_clk, i_rst_n;
   logic i_rx, o_tx, i_cts, o_rts;
@@ -34,15 +34,12 @@ module uart_tb();
   uart #(
     .DataLength(DataLength),
     .FifoDepth(FifoDepth),
-    .OverSample(OverSample),
     .BaudRate(BaudRate),
     .SystemClockFreq(ClockFreq),
     .FlowControl(FlowControl)
   ) uut (
     .i_clk,
     .i_rst_n,
-    .i_ctrl(),
-    .o_status(),
     .i_tx_data,
     .o_rx_data,
     .i_tx_req,

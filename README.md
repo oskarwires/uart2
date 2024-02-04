@@ -20,7 +20,7 @@ To receive data:
 2. Read the value in `o_rx_data` and assert `i_rx_req` (in the same clock cycle). Ensure that `i_rx_req` is high for *only* one (1) clock cycle
 3. If `o_rx_error = 1`, then the stop bit received was invalid. The UART transceiver goes into a error state and a reset must be asserted to leave this state
 
-## Parameters:
+## Parameters
 - `DataLength`: how many bits to send and receive. Default = `8`
 - `BaudRate`: the baud rate of the transceiver. Default `115200`
 - `FifoDepth`: how words stored in the FIFO. Default `8`
@@ -29,7 +29,7 @@ To receive data:
 - `ParityEven`: even parity bit if `1`, odd parity bit if `0`. Default `0`
 - `FlowControl`: enables RTS and CTS hardware flow control. Default `0`
 
-## TODO:
+## TODO
 - Add parity bit
 - Add parameter to allow for soft-error handling, meaning that the receiver will wait a set amount of clock cycles after an invalid stop bit before it starts listening for a start bit again. This means no need for reset assertion to get out of error state
 

@@ -20,8 +20,6 @@ To receive data:
 2. Read the value in `o_rx_data` and assert `i_rx_req` (in the same clock cycle). Ensure that `i_rx_req` is high for *only* one (1) clock cycle
 3. If `o_rx_error = 1`, then the stop bit received was invalid. The UART transceiver goes into a error state and a reset must be asserted to leave this state
 
-**By Default** the module assumes no parity bit, hardware flow control off, data length of 8 bits, fifo depth of 8 words, system clock frequency of 50 MHz, and 115200 baud rate.
-
 ## Parameters:
 - `DataLength`: how many bits to send and receive. Default = `8`
 - `BaudRate`: the baud rate of the transceiver. Default `115200`

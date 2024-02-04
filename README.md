@@ -22,12 +22,12 @@ To receive data:
 
 ## Parameters
 - `DataLength`: how many bits to send and receive. Default = `8`
-- `BaudRate`: the baud rate of the transceiver. Default `115200`
-- `FifoDepth`: how words stored in the FIFO. Default `8`
-- `SystemClockFreq`: the clock frequency given to `i_clk`. Default `50 MHz`
-- `Parity`: enable parity bit if `1`, disable if `0`. Default `0`
-- `ParityEven`: even parity bit if `1`, odd parity bit if `0`. Default `0`
-- `FlowControl`: enables RTS and CTS hardware flow control. Default `0`
+- `BaudRate`: the baud rate of the transceiver. Default = `115200`
+- `FifoDepth`: how words stored in the FIFO. Default = `8`
+- `SystemClockFreq`: the clock frequency given to `i_clk`. Default = `50 MHz`
+- `Parity`: enable parity bit if `1`, disable if `0`. Default = `0`
+- `ParityEven`: even parity bit if `1`, odd parity bit if `0`. Default = `0`
+- `FlowControl`: enables RTS and CTS hardware flow control. Default = `0`
 
 ## TODO
 - Add parity bit

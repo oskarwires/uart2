@@ -30,7 +30,8 @@ To receive data:
 - `FlowControl`: enables RTS and CTS hardware flow control. Default `0`
 
 ## TODO:
-Add parity bit
+- Add parity bit
+- Add parameter to allow for soft-error handling, meaning that the receiver will wait a set amount of clock cycles after an invalid stop bit before it starts listening for a start bit again. This means no need for reset assertion to get out of error state
 
 ## License
 See the `LICENSE` file

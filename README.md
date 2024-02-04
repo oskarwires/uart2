@@ -31,3 +31,6 @@ To receive data:
 
 ## TODO:
 Add parity bit
+
+## License
+See the `LICENSE` file

@@ -20,6 +20,22 @@ To receive data:
 2. Read the value in `o_rx_data` and assert `i_rx_req` (in the same clock cycle). Ensure that `i_rx_req` is high for *only* one (1) clock cycle
 3. If `o_rx_error = 1`, then the stop bit received was invalid. The UART transceiver goes into a error state and a reset must be asserted to leave this state
 
+## More details
+This UART transceiver has 3 main features that make it great: RX & TX FIFO, enhanced noise immunity through majority three voting, and stop bit error detection.
+
+### FIFO
+The FIFOs on this transceiver are implemented as simple synchronous uni-directional FIFOs. For the RX FIFO, the transceiver inserts data, and the user agent extracts it.
+For the TX FIFO, the transceiver extracts data, and the user agent inserts it.
+
+### Majority three voting
+To help with noise immunity, each bit's value is sampled three times during each bit period. Once the start bit is received, to align the bit sampling, the RX module starts a counter.
+This counter signals every half-bit period, full-bit period, 4/10th bit period, and 6/10th bit period. 
+We sample the bit's value on the 4/10th, 5/10th, and 6/10th of the period. The majority of these three values is the value received. 
+Because we are running the RX module at the input clock frequency, which is (normally) _many_ times higher than the baud rate, the alignment of the half-bit strobe is extremely accurate. 
+
+### Stop bit error detection
+To detect a valid stop bit, we check that the incoming bit's majority three value = `1` when we expect a stop bit. If this is true, then great, we send the received packet to the RX FIFO. If this stop bit's majority three value is `0`, however, then we go into an error state and `o_rx_error = 1`. To get out of this state, a reset must be asserted.
+
 ## Parameters
 - `DataLength`: how many bits to send and receive. Default = `8`
 - `BaudRate`: the baud rate of the transceiver. Default = `115200`
